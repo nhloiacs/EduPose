@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 from app.database.database import get_db
 
 from app.schemas.auth import (
-    RegisterRequest,
     LoginRequest,
     AuthResponse
 )
@@ -21,33 +20,6 @@ router = APIRouter(
     tags=["Auth"]
 )
 
-
-@router.post("/register")
-def register(
-    request: RegisterRequest,
-    db: Session = Depends(get_db)
-):
-    try:
-
-        user = AuthService.register(
-            db,
-            request.name,
-            request.email,
-            request.password
-        )
-
-        return {
-            "message": "Register success",
-            "user_id": user.id
-        }
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail=str(e)
-        )
-
-
 @router.post(
     "/login",
     response_model=AuthResponse
@@ -57,7 +29,6 @@ def login(
     db: Session = Depends(get_db)
 ):
     try:
-
         token = AuthService.login(
             db,
             request.email,
@@ -65,7 +36,7 @@ def login(
         )
 
         return AuthResponse(
-            access_token=token
+            token=token
         )
 
     except Exception as e:

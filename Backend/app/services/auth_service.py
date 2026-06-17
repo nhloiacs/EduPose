@@ -8,67 +8,32 @@ from app.core.security import (
     create_access_token
 )
 
-from app.models.user import User
-from app.repositories.user_repository import UserRepository
+from app.models.teacher import Teacher
+from app.repositories.teacher_repository import TeacherRepository
 
 
 class AuthService:
-
-    @staticmethod
-    def register(
-        db: Session,
-        name: str,
-        email: str,
-        password: str
-    ):
-        existing_user = (
-            UserRepository.get_by_email(
-                db,
-                email
-            )
-        )
-
-        if existing_user:
-            raise Exception(
-                "Email already registered"
-            )
-
-        user = User(
-            id=str(uuid.uuid4()),
-            name=name,
-            email=email,
-            password_hash=hash_password(
-                password
-            ),
-            role="TEACHER"
-        )
-
-        return UserRepository.create(
-            db,
-            user
-        )
-
     @staticmethod
     def login(
         db: Session,
         email: str,
         password: str
     ):
-        user = (
-            UserRepository.get_by_email(
+        teacher = (
+            TeacherRepository.get_by_email(
                 db,
                 email
             )
         )
 
-        if not user:
+        if not teacher:
             raise Exception(
                 "Invalid credentials"
             )
 
         if not verify_password(
             password,
-            user.password_hash
+            teacher.password_hash
         ):
             raise Exception(
                 "Invalid credentials"
@@ -76,9 +41,9 @@ class AuthService:
 
         token = create_access_token(
             {
-                "sub": str(user.id),
-                "email": user.email,
-                "role": user.role
+                "sub": str(teacher.id),
+                "email": teacher.email,
+                "role": teacher.role
             }
         )
 

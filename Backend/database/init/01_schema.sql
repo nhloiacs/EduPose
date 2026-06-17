@@ -4,12 +4,15 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE TABLE teachers (
     id UUID PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    nis VARCHAR(50) UNIQUE,
+    nip VARCHAR(50) UNIQUE,
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
     role VARCHAR(20) CHECK (role IN ('teacher', 'principal')),
+    photo_filepath TEXT,
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
 );
 
 -- CAMERAS
@@ -17,7 +20,9 @@ CREATE TABLE cameras (
     id UUID PRIMARY KEY,
     device_code VARCHAR(50) UNIQUE NOT NULL,
     status VARCHAR(20) DEFAULT 'ONLINE',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
 );
 
 -- CLASSROOMS
@@ -25,7 +30,9 @@ CREATE TABLE classrooms (
     id UUID PRIMARY KEY,
     camera_id UUID REFERENCES cameras(id) ON DELETE SET NULL,
     name VARCHAR(50) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
 );
 
 -- STUDENTS
@@ -34,7 +41,10 @@ CREATE TABLE students (
     classroom_id UUID REFERENCES classrooms(id) ON DELETE CASCADE,
     nis VARCHAR(50) UNIQUE,
     name VARCHAR(100) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    photo_filepath TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
 );
 
 -- SESSIONS
@@ -45,7 +55,10 @@ CREATE TABLE classroom_sessions (
     subject VARCHAR(100),
     start_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     end_time TIMESTAMP,
-    status VARCHAR(20) DEFAULT 'ONGOING'
+    status VARCHAR(20) DEFAULT 'ONGOING',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
 );
 
 CREATE TABLE frame_logs (
@@ -56,7 +69,7 @@ CREATE TABLE frame_logs (
     image_filepath TEXT
 );
 
--- METRICS
+-- CLASSROOM METRICS
 CREATE TABLE classroom_metrics (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     session_id UUID REFERENCES classroom_sessions(id) ON DELETE CASCADE,
