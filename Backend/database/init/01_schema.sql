@@ -1,165 +1,90 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- USERS
-
-CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-
+-- TEACHERS
+CREATE TABLE teachers (
+    id UUID PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-
+    nis VARCHAR(50) UNIQUE,
     email VARCHAR(255) UNIQUE NOT NULL,
-
     password_hash TEXT NOT NULL,
-
-    role VARCHAR(20) NOT NULL,
-
+    role VARCHAR(20) CHECK (role IN ('teacher', 'principal')),
     is_active BOOLEAN DEFAULT TRUE,
-
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- CAMERAS
-
 CREATE TABLE cameras (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-
+    id UUID PRIMARY KEY,
     device_code VARCHAR(50) UNIQUE NOT NULL,
-
-    stream_url TEXT,
-
-    status VARCHAR(20) DEFAULT 'OFFLINE',
-
-    last_seen TIMESTAMP,
-
+    status VARCHAR(20) DEFAULT 'ONLINE',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- CLASSROOMS
-
 CREATE TABLE classrooms (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-
-    camera_id UUID UNIQUE REFERENCES cameras(id),
-
+    id UUID PRIMARY KEY,
+    camera_id UUID REFERENCES cameras(id) ON DELETE SET NULL,
     name VARCHAR(50) NOT NULL,
-
-    grade VARCHAR(20),
-
-    academic_year VARCHAR(20),
-
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- STUDENTS
-
 CREATE TABLE students (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-
-    classroom_id UUID REFERENCES classrooms(id),
-
+    id UUID PRIMARY KEY,
+    classroom_id UUID REFERENCES classrooms(id) ON DELETE CASCADE,
     nis VARCHAR(50) UNIQUE,
-
     name VARCHAR(100) NOT NULL,
-
-    photo_url TEXT,
-
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ATTENDANCE
-
-CREATE TABLE attendance_records (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-
-    student_id UUID REFERENCES students(id),
-
-    date DATE NOT NULL,
-
-    status VARCHAR(20) NOT NULL,
-
-    confidence FLOAT,
-
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- CLASSROOM SESSION
-
+-- SESSIONS
 CREATE TABLE classroom_sessions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-
-    classroom_id UUID REFERENCES classrooms(id),
-
-    teacher_name VARCHAR(100),
-
+    id UUID PRIMARY KEY,
+    classroom_id UUID REFERENCES classrooms(id) ON DELETE CASCADE,
+    teacher_id UUID REFERENCES teachers(id) ON DELETE SET NULL,
     subject VARCHAR(100),
-
-    start_time TIMESTAMP NOT NULL,
-
-    end_time TIMESTAMP
+    start_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    end_time TIMESTAMP,
+    status VARCHAR(20) DEFAULT 'ONGOING'
 );
 
--- CLASSROOM METRICS
+CREATE TABLE frame_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID REFERENCES classroom_sessions(id) ON DELETE CASCADE,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    payload JSONB NOT NULL,    
+    image_filepath TEXT
+);
 
+-- METRICS
 CREATE TABLE classroom_metrics (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-
-    session_id UUID REFERENCES classroom_sessions(id),
-
+    session_id UUID REFERENCES classroom_sessions(id) ON DELETE CASCADE,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    attendance_count INTEGER DEFAULT 0,
-
     active_students INTEGER DEFAULT 0,
-
-    raised_hands INTEGER DEFAULT 0,
-
-    engagement_score FLOAT DEFAULT 0
+    focus_percentage FLOAT DEFAULT 0,
+    using_phone_count INTEGER DEFAULT 0,
+    raised_hand_count INTEGER DEFAULT 0
 );
 
--- STUDENT METRICS
+-- MAPPING POSISI (Seating)
+CREATE TABLE session_seatings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID REFERENCES classroom_sessions(id) ON DELETE CASCADE,
+    student_id UUID REFERENCES students(id) ON DELETE CASCADE,
+    pos_x INTEGER NOT NULL,
+    pos_y INTEGER NOT NULL,
+    attendance_status VARCHAR(20) DEFAULT 'PRESENT',
+    UNIQUE(session_id, student_id)
+);
 
 CREATE TABLE student_metrics (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-
-    student_id UUID REFERENCES students(id),
-
-    session_id UUID REFERENCES classroom_sessions(id),
-
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    attention_score FLOAT DEFAULT 0,
-
-    participation_score FLOAT DEFAULT 0,
-
-    engagement_score FLOAT DEFAULT 0
-);
-
--- DETECTIONS
-
-CREATE TABLE detections (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-
-    session_id UUID REFERENCES classroom_sessions(id),
-
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    detection_type VARCHAR(50),
-
-    confidence FLOAT,
-
-    metadata JSONB
-);
-
--- SNAPSHOTS
-
-CREATE TABLE snapshots (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-
-    session_id UUID REFERENCES classroom_sessions(id),
-
-    image_url TEXT,
-
-    event_type VARCHAR(50),
-
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    session_id UUID REFERENCES classroom_sessions(id) ON DELETE CASCADE,
+    student_id UUID REFERENCES students(id) ON DELETE CASCADE,
+    focus_score FLOAT DEFAULT 0,
+    distracted_score FLOAT DEFAULT 0,
+    raised_hand_count INTEGER DEFAULT 0,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(session_id, student_id)
 );
