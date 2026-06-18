@@ -24,7 +24,7 @@ def test_teacher(db_session):
         name="Test Teacher",
         email="test@sekolah.com",
         password_hash=hash_password(password),
-        photo_filepath="/static/images/profiles/profile.png",
+        photo_filepath="/static/images/teachers/profile.png",
         role="teacher"
     )
     db_session.add(teacher)
@@ -43,7 +43,7 @@ def test_login_success(client, test_teacher):
     assert "token" in json_data["data"]
     assert json_data["data"]["name"] == "Test Teacher"
     assert json_data["data"]["email"] == "test@sekolah.com"
-    assert json_data["data"]["photo_filepath"] == "/static/images/profiles/profile.png"
+    assert json_data["data"]["photo_filepath"] == "/static/images/teachers/profile.png"
 
 def test_login_wrong_password(client, test_teacher):
     payload = {"email": "test@sekolah.com", "password": "salah_bang"}

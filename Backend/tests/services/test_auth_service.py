@@ -11,7 +11,7 @@ def test_teacher(db_session):
         name="Test Teacher",
         email="test@sekolah.com",
         password_hash=hash_password(password),
-        photo_filepath="/static/images/profiles/profile.png",
+        photo_filepath="/static/images/teachers/profile.png",
         role="teacher"
     )
     db_session.add(teacher)
@@ -31,7 +31,7 @@ def test_login_success(db_session, test_teacher):
     assert result["name"] == "Test Teacher"
     assert result["email"] == "test@sekolah.com"
     assert result["role"] == "teacher"
-    assert result["photo_filepath"] == "/static/images/profiles/profile.png"
+    assert result["photo_filepath"] == "/static/images/teachers/profile.png"
 
 def test_login_invalid_email(db_session):
     with pytest.raises(UnauthorizedException, match="Invalid credentials"):

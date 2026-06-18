@@ -30,7 +30,7 @@ def test_create_teacher_success(db_session):
     assert teacher.id is not None
     assert teacher.name == data.name
     assert teacher.email == data.email
-    assert "profiles" in teacher.photo_filepath
+    assert "teachers" in teacher.photo_filepath
 
 def test_create_teacher_reactivate_flow(db_session):
     data = generate_unique_teacher()

@@ -12,7 +12,7 @@ from app.schemas.teacher import TeacherCreate, TeacherUpdate
 from app.utils.file_manager import FileManager
 
 class TeacherService:
-    UPLOAD_DIR = Path("app/static/images/profiles")
+    UPLOAD_DIR = Path("app/static/images/teachers")
 
     @staticmethod
     def get_teacher_by_id(db: Session, teacher_id: uuid.UUID) -> Any:

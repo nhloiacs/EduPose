@@ -1,11 +1,11 @@
 -- 1 Principal + 5 Teachers (Total 6)
 INSERT INTO teachers (id, nip, name, email, password_hash, role, photo_filepath) VALUES
-('00000000-0000-0000-0000-000000000001', 'NIP001', 'Bambang Sutrisno', 'bambang@school.com', '$2b$12$bFD9SwOmyux8G7DmEAy24OHu17p1SPrK69e4aOchxwP8PskxDmqxi', 'principal', '/static/images/profiles/profile.png'),
-('00000000-0000-0000-0000-000000000002', 'NIP002', 'Siti Aminah', 'siti@school.com', '$2b$12$bFD9SwOmyux8G7DmEAy24OHu17p1SPrK69e4aOchxwP8PskxDmqxi', 'teacher', '/static/images/profiles/profile.png'),
-('00000000-0000-0000-0000-000000000003', 'NIP003', 'Dewi Sartika', 'dewi@school.com', '$2b$12$bFD9SwOmyux8G7DmEAy24OHu17p1SPrK69e4aOchxwP8PskxDmqxi', 'teacher', '/static/images/profiles/profile.png'),
-('00000000-0000-0000-0000-000000000004', 'NIP004', 'Agus Wijaya', 'agus@school.com', '$2b$12$bFD9SwOmyux8G7DmEAy24OHu17p1SPrK69e4aOchxwP8PskxDmqxi', 'teacher', '/static/images/profiles/profile.png'),
-('00000000-0000-0000-0000-000000000005', 'NIP005', 'Ratna Sari', 'ratna@school.com', '$2b$12$bFD9SwOmyux8G7DmEAy24OHu17p1SPrK69e4aOchxwP8PskxDmqxi', 'teacher', '/static/images/profiles/profile.png'),
-('00000000-0000-0000-0000-000000000006', 'NIP006', 'Hendra Gunawan', 'henra@school.com', '$2b$12$bFD9SwOmyux8G7DmEAy24OHu17p1SPrK69e4aOchxwP8PskxDmqxi', 'teacher',  '/static/images/profiles/profile.png');
+('00000000-0000-0000-0000-000000000001', 'NIP001', 'Bambang Sutrisno', 'bambang@school.com', '$2b$12$bFD9SwOmyux8G7DmEAy24OHu17p1SPrK69e4aOchxwP8PskxDmqxi', 'principal', '/static/images/teachers/profile.png'),
+('00000000-0000-0000-0000-000000000002', 'NIP002', 'Siti Aminah', 'siti@school.com', '$2b$12$bFD9SwOmyux8G7DmEAy24OHu17p1SPrK69e4aOchxwP8PskxDmqxi', 'teacher', '/static/images/teachers/profile.png'),
+('00000000-0000-0000-0000-000000000003', 'NIP003', 'Dewi Sartika', 'dewi@school.com', '$2b$12$bFD9SwOmyux8G7DmEAy24OHu17p1SPrK69e4aOchxwP8PskxDmqxi', 'teacher', '/static/images/teachers/profile.png'),
+('00000000-0000-0000-0000-000000000004', 'NIP004', 'Agus Wijaya', 'agus@school.com', '$2b$12$bFD9SwOmyux8G7DmEAy24OHu17p1SPrK69e4aOchxwP8PskxDmqxi', 'teacher', '/static/images/teachers/profile.png'),
+('00000000-0000-0000-0000-000000000005', 'NIP005', 'Ratna Sari', 'ratna@school.com', '$2b$12$bFD9SwOmyux8G7DmEAy24OHu17p1SPrK69e4aOchxwP8PskxDmqxi', 'teacher', '/static/images/teachers/profile.png'),
+('00000000-0000-0000-0000-000000000006', 'NIP006', 'Hendra Gunawan', 'henra@school.com', '$2b$12$bFD9SwOmyux8G7DmEAy24OHu17p1SPrK69e4aOchxwP8PskxDmqxi', 'teacher',  '/static/images/teachers/profile.png');
 
 -- 1 Camera
 INSERT INTO cameras (id, device_code) VALUES
@@ -22,35 +22,35 @@ INSERT INTO classrooms (id, camera_id, name) VALUES
 -- 25 Students
 INSERT INTO students (id, classroom_id, nis, name, photo_filepath) VALUES
 -- 10-A
-('33333333-3333-3333-3333-000000000001', '22222222-2222-2222-2222-222222222201', 'NIS001', 'Andi', '/static/images/profiles/profile.png'),
-('33333333-3333-3333-3333-000000000002', '22222222-2222-2222-2222-222222222201', 'NIS002', 'Budi', '/static/images/profiles/profile.png'),
-('33333333-3333-3333-3333-000000000003', '22222222-2222-2222-2222-222222222201', 'NIS003', 'Citra', '/static/images/profiles/profile.png'),
-('33333333-3333-3333-3333-000000000004', '22222222-2222-2222-2222-222222222201', 'NIS004', 'Dedi', '/static/images/profiles/profile.png'),
-('33333333-3333-3333-3333-000000000005', '22222222-2222-2222-2222-222222222201', 'NIS005', 'Eka', '/static/images/profiles/profile.png'),
+('33333333-3333-3333-3333-000000000001', '22222222-2222-2222-2222-222222222201', 'NIS001', 'Andi', '/static/images/students/profile.png'),
+('33333333-3333-3333-3333-000000000002', '22222222-2222-2222-2222-222222222201', 'NIS002', 'Budi', '/static/images/students/profile.png'),
+('33333333-3333-3333-3333-000000000003', '22222222-2222-2222-2222-222222222201', 'NIS003', 'Citra', '/static/images/students/profile.png'),
+('33333333-3333-3333-3333-000000000004', '22222222-2222-2222-2222-222222222201', 'NIS004', 'Dedi', '/static/images/students/profile.png'),
+('33333333-3333-3333-3333-000000000005', '22222222-2222-2222-2222-222222222201', 'NIS005', 'Eka', '/static/images/students/profile.png'),
 -- Kelas 10-B 
-('33333333-3333-3333-3333-000000000006', '22222222-2222-2222-2222-222222222202', 'NIS006', 'Fani', '/static/images/profiles/profile.png'),
-('33333333-3333-3333-3333-000000000007', '22222222-2222-2222-2222-222222222202', 'NIS007', 'Gani', '/static/images/profiles/profile.png'),
-('33333333-3333-3333-3333-000000000008', '22222222-2222-2222-2222-222222222202', 'NIS008', 'Hani', '/static/images/profiles/profile.png'),
-('33333333-3333-3333-3333-000000000009', '22222222-2222-2222-2222-222222222202', 'NIS009', 'Indra', '/static/images/profiles/profile.png'),
-('33333333-3333-3333-3333-000000000010', '22222222-2222-2222-2222-222222222202', 'NIS010', 'Jaka', '/static/images/profiles/profile.png'),
+('33333333-3333-3333-3333-000000000006', '22222222-2222-2222-2222-222222222202', 'NIS006', 'Fani', '/static/images/students/profile.png'),
+('33333333-3333-3333-3333-000000000007', '22222222-2222-2222-2222-222222222202', 'NIS007', 'Gani', '/static/images/students/profile.png'),
+('33333333-3333-3333-3333-000000000008', '22222222-2222-2222-2222-222222222202', 'NIS008', 'Hani', '/static/images/students/profile.png'),
+('33333333-3333-3333-3333-000000000009', '22222222-2222-2222-2222-222222222202', 'NIS009', 'Indra', '/static/images/students/profile.png'),
+('33333333-3333-3333-3333-000000000010', '22222222-2222-2222-2222-222222222202', 'NIS010', 'Jaka', '/static/images/students/profile.png'),
 -- Kelas 11-A
-('33333333-3333-3333-3333-000000000011', '22222222-2222-2222-2222-222222222203', 'NIS011', 'Kiki', '/static/images/profiles/profile.png'),
-('33333333-3333-3333-3333-000000000012', '22222222-2222-2222-2222-222222222203', 'NIS012', 'Lala', '/static/images/profiles/profile.png'),
-('33333333-3333-3333-3333-000000000013', '22222222-2222-2222-2222-222222222203', 'NIS013', 'Mimi', '/static/images/profiles/profile.png'),
-('33333333-3333-3333-3333-000000000014', '22222222-2222-2222-2222-222222222203', 'NIS014', 'Nana', '/static/images/profiles/profile.png'),
-('33333333-3333-3333-3333-000000000015', '22222222-2222-2222-2222-222222222203', 'NIS015', 'Oki', '/static/images/profiles/profile.png'),
+('33333333-3333-3333-3333-000000000011', '22222222-2222-2222-2222-222222222203', 'NIS011', 'Kiki', '/static/images/students/profile.png'),
+('33333333-3333-3333-3333-000000000012', '22222222-2222-2222-2222-222222222203', 'NIS012', 'Lala', '/static/images/students/profile.png'),
+('33333333-3333-3333-3333-000000000013', '22222222-2222-2222-2222-222222222203', 'NIS013', 'Mimi', '/static/images/students/profile.png'),
+('33333333-3333-3333-3333-000000000014', '22222222-2222-2222-2222-222222222203', 'NIS014', 'Nana', '/static/images/students/profile.png'),
+('33333333-3333-3333-3333-000000000015', '22222222-2222-2222-2222-222222222203', 'NIS015', 'Oki', '/static/images/students/profile.png'),
 -- Kelas 11-A
-('33333333-3333-3333-3333-000000000016', '22222222-2222-2222-2222-222222222204', 'NIS016', 'Pipi', '/static/images/profiles/profile.png'),
-('33333333-3333-3333-3333-000000000017', '22222222-2222-2222-2222-222222222204', 'NIS017', 'Qiqi', '/static/images/profiles/profile.png'),
-('33333333-3333-3333-3333-000000000018', '22222222-2222-2222-2222-222222222204', 'NIS018', 'Riri', '/static/images/profiles/profile.png'),
-('33333333-3333-3333-3333-000000000019', '22222222-2222-2222-2222-222222222204', 'NIS019', 'Sisi', '/static/images/profiles/profile.png'),
-('33333333-3333-3333-3333-000000000020', '22222222-2222-2222-2222-222222222204', 'NIS020', 'Toto', '/static/images/profiles/profile.png'),
+('33333333-3333-3333-3333-000000000016', '22222222-2222-2222-2222-222222222204', 'NIS016', 'Pipi', '/static/images/students/profile.png'),
+('33333333-3333-3333-3333-000000000017', '22222222-2222-2222-2222-222222222204', 'NIS017', 'Qiqi', '/static/images/students/profile.png'),
+('33333333-3333-3333-3333-000000000018', '22222222-2222-2222-2222-222222222204', 'NIS018', 'Riri', '/static/images/students/profile.png'),
+('33333333-3333-3333-3333-000000000019', '22222222-2222-2222-2222-222222222204', 'NIS019', 'Sisi', '/static/images/students/profile.png'),
+('33333333-3333-3333-3333-000000000020', '22222222-2222-2222-2222-222222222204', 'NIS020', 'Toto', '/static/images/students/profile.png'),
 -- Kelas 12-A
-('33333333-3333-3333-3333-000000000021', '22222222-2222-2222-2222-222222222205', 'NIS021', 'Uli', '/static/images/profiles/profile.png'),
-('33333333-3333-3333-3333-000000000022', '22222222-2222-2222-2222-222222222205', 'NIS022', 'Vivi', '/static/images/profiles/profile.png'),
-('33333333-3333-3333-3333-000000000023', '22222222-2222-2222-2222-222222222205', 'NIS023', 'Wawa', '/static/images/profiles/profile.png'),
-('33333333-3333-3333-3333-000000000024', '22222222-2222-2222-2222-222222222205', 'NIS024', 'Xixi', '/static/images/profiles/profile.png'),
-('33333333-3333-3333-3333-000000000025', '22222222-2222-2222-2222-222222222205', 'NIS025', 'Yoyo', '/static/images/profiles/profile.png');
+('33333333-3333-3333-3333-000000000021', '22222222-2222-2222-2222-222222222205', 'NIS021', 'Uli', '/static/images/students/profile.png'),
+('33333333-3333-3333-3333-000000000022', '22222222-2222-2222-2222-222222222205', 'NIS022', 'Vivi', '/static/images/students/profile.png'),
+('33333333-3333-3333-3333-000000000023', '22222222-2222-2222-2222-222222222205', 'NIS023', 'Wawa', '/static/images/students/profile.png'),
+('33333333-3333-3333-3333-000000000024', '22222222-2222-2222-2222-222222222205', 'NIS024', 'Xixi', '/static/images/students/profile.png'),
+('33333333-3333-3333-3333-000000000025', '22222222-2222-2222-2222-222222222205', 'NIS025', 'Yoyo', '/static/images/students/profile.png');
 
 -- 15 Classroom Sessions
 INSERT INTO classroom_sessions (id, classroom_id, teacher_id, start_time, end_time, subject) VALUES
