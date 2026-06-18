@@ -1,7 +1,6 @@
 import uuid
 from typing import Optional, List
 from pydantic import BaseModel, EmailStr, ConfigDict
-
 from app.schemas.base import PaginationMeta 
 
 class TeacherBase(BaseModel):

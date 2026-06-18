@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse        
 from app.api.auth import router as auth_router
 from app.api.teacher import router as teacher_router
+from app.api.classroom import router as classroom_router
 from app.core.exceptions import BaseAPIException  
 
 app = FastAPI()
@@ -23,6 +24,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 app.include_router(auth_router)
 app.include_router(teacher_router)
+app.include_router(classroom_router)
 
 @app.get("/")
 def health():

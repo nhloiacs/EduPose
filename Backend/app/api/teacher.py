@@ -57,6 +57,9 @@ def list_teachers(
 
 @router.get("/{teacher_id}", response_model=BaseResponse[TeacherRead], summary="Get teacher detail")
 def get_teacher(teacher_id: uuid.UUID, db: Session = Depends(get_db), _: dict = Depends(require_principal)):
+    """
+    Mengambil teacher by id
+    """
     teacher = TeacherService.get_teacher_by_id(db, teacher_id)
     return BaseResponse(message="Teacher retrieved successfully", data=teacher)
 
@@ -72,6 +75,9 @@ def update_teacher(
     db: Session = Depends(get_db),
     _: dict = Depends(require_principal)
 ):
+    """
+    Mengupdate teacher
+    """
     update_data = {}
     if name is not None: update_data["name"] = name
     if email is not None: update_data["email"] = email
