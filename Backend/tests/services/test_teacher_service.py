@@ -55,7 +55,7 @@ def test_update_teacher_name(db_session):
     update_data = {"name": "Jojo Update"}
     updated_teacher = TeacherService.update_teacher(db_session, teacher.id, update_data)
     assert updated_teacher.name == "Jojo Update"
-    assert updated_teacher.email == data.email # Pastikan email tidak berubah
+    assert updated_teacher.email == data.email
 
 def test_delete_teacher_success(db_session):
     data = generate_unique_teacher()

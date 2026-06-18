@@ -1,51 +1,78 @@
-from sqlalchemy.orm import Session
-from app.repositories.teacher_repository import TeacherRepository
-from app.core.security import hash_password
-from app.schemas.teacher import TeacherCreate, TeacherUpdate
-from app.core.exceptions import ConflictException, NotFoundException
-from typing import Optional
-from fastapi import UploadFile
-from pathlib import Path
-import uuid
-import shutil
 import os
+import shutil
+import uuid
+from pathlib import Path
+from typing import Optional, Tuple, List, Any
+
+from fastapi import UploadFile, HTTPException
+from sqlalchemy.orm import Session
+
+from app.core.exceptions import ConflictException, NotFoundException
+from app.core.security import hash_password
+from app.repositories.teacher_repository import TeacherRepository
+from app.schemas.teacher import TeacherCreate, TeacherUpdate
+
 
 class TeacherService:
+    UPLOAD_DIR = Path("app/static/images/profiles")
+    ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif"}
+
     @staticmethod
-    def get_teacher_by_id(db: Session, teacher_id: uuid.UUID):
+    def _save_file(file: UploadFile) -> str:
+        """
+        Helper method untuk menyimpan file upload secara aman dengan nama unik.
+        Mengembalikan path relatif untuk disimpan di database.
+        """
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="Nama file tidak valid")
+
+        file_extension = Path(file.filename).suffix.lower()
+        if file_extension not in TeacherService.ALLOWED_EXTENSIONS:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Tipe file tidak diizinkan. Hanya {', '.join(TeacherService.ALLOWED_EXTENSIONS)}"
+            )
+        TeacherService.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        unique_filename = f"{uuid.uuid4()}{file_extension}"
+        file_path = TeacherService.UPLOAD_DIR / unique_filename
+
+        try:
+            with open(file_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Gagal menyimpan file: {str(e)}")
+
+        return f"/static/images/profiles/{unique_filename}"
+
+    @staticmethod
+    def _delete_file(photo_filepath: str) -> None:
+        """Helper method untuk menghapus file lama jika ada."""
+        if not photo_filepath:
+            return
+            
+        try:
+            relative_path = photo_filepath.lstrip("/")
+            file_path = Path("app") / relative_path
+            
+            if file_path.exists():
+                os.remove(file_path)
+        except Exception:
+            pass
+
+    @staticmethod
+    def get_teacher_by_id(db: Session, teacher_id: uuid.UUID) -> Any:
         teacher = TeacherRepository.get_by_id(db, teacher_id)
         if not teacher:
             raise NotFoundException("Teacher tidak ditemukan")
         return teacher
 
-import shutil
-import uuid
-from pathlib import Path
-from fastapi import UploadFile
-from sqlalchemy.orm import Session
-from app.core.security import hash_password
-from app.core.exceptions import ConflictException
-from app.repositories.teacher_repository import TeacherRepository
-from app.schemas.teacher import TeacherCreate
-
-class TeacherService:
     @staticmethod
-    def create_teacher(db: Session, data: TeacherCreate, file: UploadFile):
+    def create_teacher(db: Session, data: TeacherCreate, file: UploadFile) -> Any:
         if TeacherRepository.get_by_email_or_nip(db, data.email, data.nip):
             raise ConflictException("Email atau NIP sudah terdaftar.")
 
-        upload_dir = Path("app/static/images/profiles")
-        upload_dir.mkdir(parents=True, exist_ok=True)
-
-        file_extension = Path(file.filename).suffix
-        unique_filename = f"{uuid.uuid4()}{file_extension}" 
-        file_path = upload_dir / unique_filename
-
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-
-        photo_url = f"/static/images/profiles/{unique_filename}"
-        hashed = hash_password(data.password)
+        photo_url = TeacherService._save_file(file)
+        hashed_pw = hash_password(data.password)
 
         deleted_teacher = TeacherRepository.get_soft_deleted(db, data.email, data.nip)
         
@@ -54,50 +81,38 @@ class TeacherService:
                 db=db, 
                 teacher=deleted_teacher, 
                 data=data, 
-                hashed_pw=hashed, 
+                hashed_pw=hashed_pw, 
                 photo_filepath=photo_url
             )
 
-        return TeacherRepository.create(db, data, hashed, photo_url)
+        return TeacherRepository.create(db, data, hashed_pw, photo_url)
 
     @staticmethod
-    def get_all_teachers(db: Session, page: int, size: int, search: Optional[str] = None):
+    def get_all_teachers(db: Session, page: int, size: int, search: Optional[str] = None) -> Tuple[List[Any], int]:
         page = max(1, page)
         skip = (page - 1) * size
-        
         items, total = TeacherRepository.get_all(db, skip, size, search)
         return items, total
-            
 
     @staticmethod
-    def update_teacher(db: Session, teacher_id: uuid.UUID, update_data: dict, file: Optional[UploadFile] = None):
+    def update_teacher(db: Session, teacher_id: uuid.UUID, update_data: dict, file: Optional[UploadFile] = None) -> Any:
         teacher = TeacherRepository.get_by_id(db, teacher_id)
         if not teacher:
             raise NotFoundException("Teacher tidak ditemukan")
 
         if file:
-            upload_dir = Path("app/static/images/profiles")
-            upload_dir.mkdir(parents=True, exist_ok=True)
-            
-            if teacher.photo_filepath and (Path("app") / teacher.photo_filepath.lstrip("/")).exists():
-                os.remove(Path("app") / teacher.photo_filepath.lstrip("/"))
-
-            file_extension = Path(file.filename).suffix
-            unique_filename = f"{uuid.uuid4()}{file_extension}"
-            file_path = upload_dir / unique_filename
-            
-            with open(file_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)            
-            update_data["photo_filepath"] = f"/static/images/profiles/{unique_filename}"
+            TeacherService._delete_file(teacher.photo_filepath)
+            update_data["photo_filepath"] = TeacherService._save_file(file)
 
         if "email" in update_data and update_data["email"] != teacher.email:
             if TeacherRepository.get_by_email(db, update_data["email"]):
                 raise ConflictException("Email sudah digunakan oleh teacher lain")
+
         return TeacherRepository.update(db, teacher, update_data)
-    
+
     @staticmethod
-    def delete_teacher(db: Session, teacher_id: str):
+    def delete_teacher(db: Session, teacher_id: uuid.UUID) -> Any:
         teacher = TeacherRepository.soft_delete(db, teacher_id)
         if not teacher:
             raise NotFoundException("Teacher tidak ditemukan")
-        return teacher
+        return teacher   
