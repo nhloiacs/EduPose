@@ -8,3 +8,7 @@ class LoginRequest(BaseModel):
 
 class AuthResponse(BaseModel):
     token: str
+    name: str
+    email: str
+    role: str
+    photo_filepath: str

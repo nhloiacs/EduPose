@@ -1,5 +1,5 @@
 -- 1 Principal + 5 Teachers (Total 6)
-INSERT INTO teachers (id, name, nip, email, password_hash, role, photo_filepath) VALUES
+INSERT INTO teachers (id, nip, name, email, password_hash, role, photo_filepath) VALUES
 ('00000000-0000-0000-0000-000000000001', 'NIP001', 'Bambang Sutrisno', 'bambang@school.com', '$2b$12$bFD9SwOmyux8G7DmEAy24OHu17p1SPrK69e4aOchxwP8PskxDmqxi', 'principal', '/static/images/profiles/profile.png'),
 ('00000000-0000-0000-0000-000000000002', 'NIP002', 'Siti Aminah', 'siti@school.com', '$2b$12$bFD9SwOmyux8G7DmEAy24OHu17p1SPrK69e4aOchxwP8PskxDmqxi', 'teacher', '/static/images/profiles/profile.png'),
 ('00000000-0000-0000-0000-000000000003', 'NIP003', 'Dewi Sartika', 'dewi@school.com', '$2b$12$bFD9SwOmyux8G7DmEAy24OHu17p1SPrK69e4aOchxwP8PskxDmqxi', 'teacher', '/static/images/profiles/profile.png'),

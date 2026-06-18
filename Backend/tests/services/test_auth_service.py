@@ -2,6 +2,7 @@ import pytest
 from app.services.auth_service import AuthService
 from app.models.teacher import Teacher
 from app.core.security import hash_password
+from app.core.exceptions import UnauthorizedException
 
 @pytest.fixture
 def test_teacher(db_session):
@@ -10,9 +11,9 @@ def test_teacher(db_session):
         name="Test Teacher",
         email="test@sekolah.com",
         password_hash=hash_password(password),
+        photo_filepath="/static/images/profiles/profile.png",
         role="teacher"
     )
-    print("PW: ", teacher.password_hash)
     db_session.add(teacher)
     db_session.commit()
     db_session.refresh(teacher)
@@ -23,15 +24,19 @@ def test_teacher(db_session):
     db_session.commit()
 
 def test_login_success(db_session, test_teacher):
-    token = AuthService.login(db_session, "test@sekolah.com", "password123")
+    result = AuthService.login(db_session, "test@sekolah.com", "password123")
     
-    assert token is not None
-    assert isinstance(token, str)
+    assert result["token"] is not None
+    assert isinstance(result["token"], str)
+    assert result["name"] == "Test Teacher"
+    assert result["email"] == "test@sekolah.com"
+    assert result["role"] == "teacher"
+    assert result["photo_filepath"] == "/static/images/profiles/profile.png"
 
 def test_login_invalid_email(db_session):
-    with pytest.raises(Exception, match="Invalid credentials"):
+    with pytest.raises(UnauthorizedException, match="Invalid credentials"):
         AuthService.login(db_session, "tidak.ada@sekolah.com", "random_password")
 
 def test_login_wrong_password(db_session, test_teacher):
-    with pytest.raises(Exception, match="Invalid credentials"):
+    with pytest.raises(UnauthorizedException, match="Invalid credentials"):
         AuthService.login(db_session, "test@sekolah.com", "password_salah_bang")

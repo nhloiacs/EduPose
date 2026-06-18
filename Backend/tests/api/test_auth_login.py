@@ -24,6 +24,7 @@ def test_teacher(db_session):
         name="Test Teacher",
         email="test@sekolah.com",
         password_hash=hash_password(password),
+        photo_filepath="/static/images/profiles/profile.png",
         role="teacher"
     )
     db_session.add(teacher)
@@ -37,26 +38,26 @@ def test_login_success(client, test_teacher):
     response = client.post("/auth/login", json=payload)
     
     assert response.status_code == 200
-    data = response.json()
-    assert "token" in data
-    assert isinstance(data["token"], str)
+    json_data = response.json()
+    assert "data" in json_data
+    assert "token" in json_data["data"]
+    assert json_data["data"]["name"] == "Test Teacher"
+    assert json_data["data"]["email"] == "test@sekolah.com"
+    assert json_data["data"]["photo_filepath"] == "/static/images/profiles/profile.png"
 
 def test_login_wrong_password(client, test_teacher):
     payload = {"email": "test@sekolah.com", "password": "salah_bang"}
     response = client.post("/auth/login", json=payload)
-    
     assert response.status_code == 401
-    assert "Invalid credentials" in response.json()["detail"]
+    assert "Invalid credentials" in response.json()["message"]
 
 def test_login_invalid_email(client):
     payload = {"email": "gaada@sekolah.com", "password": "password123"}
     response = client.post("/auth/login", json=payload)
-    
     assert response.status_code == 401
-    assert "Invalid credentials" in response.json()["detail"]
+    assert "Invalid credentials" in response.json()["message"]
 
 def test_login_invalid_schema(client):
     payload = {"email": "bukan-email", "password": "password123"}
     response = client.post("/auth/login", json=payload)
-    
     assert response.status_code == 422
