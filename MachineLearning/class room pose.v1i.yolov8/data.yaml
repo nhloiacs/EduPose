@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 4
+names: ['0', '1', '2', '3']
+
+roboflow:
+  workspace: class-engagement
+  project: class-room-pose
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/class-engagement/class-room-pose/dataset/1
