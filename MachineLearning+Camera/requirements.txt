@@ -4,3 +4,4 @@ joblib
 datetime
 scikit-learn
 ultralytics
+xgboost

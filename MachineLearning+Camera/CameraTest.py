@@ -6,6 +6,7 @@ import time
 import os
 import json
 import math
+import xgboost as xgb # Wajib di-import biar joblib bisa baca model XGBoost di dalem VotingClassifier
 from datetime import datetime
 from ultralytics import YOLO
 
@@ -18,13 +19,21 @@ os.makedirs(SAVE_DIR, exist_ok=True)
 INTERVAL_DETIK = 5.0
 DISTANCE_THRESHOLD = 150.0  # Toleransi radius pergerakan siswa (dalam piksel)
 
+# Pindahkan mapping ke atas agar tidak dideklarasikan berulang kali di dalam loop
+LABEL_MAP = {
+    "0": "focus",
+    "1": "distracted",
+    "2": "?",
+    "3": "raise-hand"
+}
+
 # ==========================================
 # 1. LOAD MODEL & ENCODER
 # ==========================================
 print("[INFO] Loading models...")
-rf_model = joblib.load("random_forest_classifier1.pkl")
+ensemble_model = joblib.load("model-pipeline.pkl") 
 le = joblib.load("label_encoder1.pkl")
-pose_model = YOLO("yolov8n-pose.pt")
+pose_model = YOLO("yolo26s-pose.pt") 
 
 feature_cols = [
     "neck_tilt", "head_spine_l", "head_spine_r", "spine_l", "spine_r", "shoulder_tilt",
@@ -117,7 +126,6 @@ while True:
         print("[ERROR] Gagal membaca frame kamera.")
         break
         
-    # UI Instruksi Absensi
     cv2.putText(frame, f"Siswa: {student_name_input}", (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
     cv2.putText(frame, "Tekan 'C' untuk Capture Absensi", (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
     
@@ -127,13 +135,10 @@ while True:
     if key == ord('c'):
         results = pose_model(frame, verbose=False)
         
-        # Pastikan ada orang yang terdeteksi
         if results[0].boxes is not None and len(results[0].boxes.xyxy) > 0:
-            # Ambil orang pertama (Asumsi saat absensi hanya ada siswa target di depan kamera)
             box = results[0].boxes.xyxy[0].cpu().numpy()
             x1, y1, x2, y2 = box
             
-            # Hitung Center Bounding Box
             cx = int((x1 + x2) / 2)
             cy = int((y1 + y2) / 2)
             
@@ -159,7 +164,6 @@ while True:
         cv2.destroyAllWindows()
         exit()
 
-# Tutup window absensi, lanjut ke monitoring
 cv2.destroyWindow("Fase Absensi")
 
 # ==========================================
@@ -175,11 +179,8 @@ try:
             break
 
         current_time = time.time()
-        
-        # Tampilkan feed kamera secara realtime sebagai preview
         preview_frame = frame.copy()
         
-        # Eksekusi AI dan Save JSON/Image hanya sesuai INTERVAL_DETIK
         if current_time - last_process_time >= INTERVAL_DETIK:
             last_process_time = current_time
             
@@ -191,18 +192,15 @@ try:
                 keypoints = results[0].keypoints.xy.cpu().numpy()
                 
                 if len(boxes) > 0 and len(keypoints) > 0:
-                    # Cari siswa yang jaraknya paling dekat dengan titik registrasi
                     min_dist = float('inf')
                     student_idx = -1
                     distances = []
                     
-                    # Kalkulasi jarak untuk semua deteksi di frame
                     for i, box in enumerate(boxes):
                         x1, y1, x2, y2 = box
                         cx = int((x1 + x2) / 2)
                         cy = int((y1 + y2) / 2)
                         
-                        # Euclidean Distance
                         dist = math.hypot(cx - registered_student["center_x"], cy - registered_student["center_y"])
                         distances.append((cx, cy, dist))
                         
@@ -210,57 +208,53 @@ try:
                             min_dist = dist
                             student_idx = i
                     
-                    # Proses setiap orang yang terdeteksi
                     for i, (box, kp) in enumerate(zip(boxes, keypoints)):
                         if len(kp) == 0: continue
                         
                         cx, cy, dist = distances[i]
                         
-                        # --- MATCHING LOGIC ---
-                        # Siswa terdaftar adalah deteksi terdekat DAN masih masuk dalam radius toleransi
                         if i == student_idx and dist <= DISTANCE_THRESHOLD:
                             current_name = registered_student["name"]
                         else:
                             current_name = "Unknown"
                             
-                        # Ekstrak fitur Pose & Prediksi Random Forest
                         features = extract_angles(kp)
                         
                         if -1 not in features.values():
                             input_data = np.array([[features[col] for col in feature_cols]])
-                            proba = rf_model.predict_proba(input_data)[0]
+                            
+                            # Eksekusi prediksi cukup SATU KALI
+                            proba = ensemble_model.predict_proba(input_data)[0]
                             max_idx = np.argmax(proba)
                             confidence = proba[max_idx]
-                            label = le.classes_[max_idx]
                             
-                            # Buat Payload JSON baru
+                            # Mapping label
+                            raw_label = str(le.classes_[max_idx])
+                            final_label = LABEL_MAP.get(raw_label, raw_label)
+                            
                             student_data = {
-                                "student_name": current_name,
-                                "label": label,
+                                "student_name": str(current_name),
+                                "label": final_label,
                                 "confidence": float(round(confidence, 3)),
-                                "pos_x": cx,
-                                "pos_y": cy
+                                "pos_x": int(cx),
+                                "pos_y": int(cy)
                             }
+                            
                             db_payload.append(student_data)
                             
                             # --- VISUAL FRAME UPDATE ---
                             x1, y1, x2, y2 = map(int, box)
-                            text = f"{current_name} | {label} ({confidence*100:.1f}%)"
-                            
-                            # Warna Bounding Box: Hijau untuk Siswa Terdaftar, Merah untuk Unknown
                             color = (0, 255, 0) if current_name != "Unknown" else (0, 0, 255)
+                            text = f"{current_name} | {final_label} ({confidence*100:.1f}%)"
                             
                             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
                             cv2.putText(frame, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
-                            # Gambar titik tengah (Center)
                             cv2.circle(frame, (cx, cy), 5, (255, 0, 0), -1)
 
-            # Save Image & Print JSON jika ada deteksi yang dieksekusi
             if len(db_payload) > 0:
                 timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
                 image_path = os.path.join(SAVE_DIR, f"frame_{timestamp_str}.jpg")
                 
-                # Simpan gambar yang sudah ditandai
                 cv2.imwrite(image_path, frame)
                 
                 final_output = {
@@ -271,11 +265,8 @@ try:
                 }
                 
                 print(json.dumps(final_output, indent=2))
-                
-                # Tampilkan juga frame terakhir yang di-save ke UI (Opsional, agar ada visual feedback)
                 preview_frame = frame.copy()
 
-        # Tampilkan Live Feed Monitoring
         cv2.imshow("Monitoring Mode", preview_frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             print("\n[INFO] Simulasi dihentikan manual (Tombol Q).")
