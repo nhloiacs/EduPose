@@ -1,7 +1,7 @@
 import pytest
 import uuid
-from app.services.classroom_service import ClassroomService
-from app.schemas.classroom import ClassroomCreate
+from app.modules.classroom.service import ClassroomService
+from app.modules.classroom.schema import ClassroomCreate
 from app.core.exceptions import ConflictException, NotFoundException
 
 def generate_unique_classroom():

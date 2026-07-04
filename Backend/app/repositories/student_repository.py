@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, or_
 from app.models.student import Student
-from app.schemas.student import StudentCreate
+from app.modules.student.schema import StudentCreate
 from typing import Optional
 import uuid
 

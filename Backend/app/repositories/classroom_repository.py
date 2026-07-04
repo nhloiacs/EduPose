@@ -2,7 +2,7 @@ import uuid
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from app.models.classroom import Classroom
-from app.schemas.classroom import ClassroomCreate
+from app.modules.classroom.schema import ClassroomCreate
 from typing import Optional
 
 DEFAULT_CAMERA_ID = uuid.UUID("11111111-1111-1111-1111-111111111111")

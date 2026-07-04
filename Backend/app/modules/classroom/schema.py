@@ -2,7 +2,7 @@ import uuid
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from datetime import datetime
-from app.schemas.base import PaginationMeta
+from app.core.responses import PaginationMeta
 
 class ClassroomBase(BaseModel):
     name: str

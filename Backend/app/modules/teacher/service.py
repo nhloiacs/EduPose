@@ -8,11 +8,11 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import ConflictException, NotFoundException
 from app.core.security import hash_password
 from app.repositories.teacher_repository import TeacherRepository
-from app.schemas.teacher import TeacherCreate, TeacherUpdate
+from app.modules.teacher.schema import TeacherCreate, TeacherUpdate
 from app.utils.file_manager import FileManager
 
 class TeacherService:
-    UPLOAD_DIR = Path("app/static/images/teachers")
+    UPLOAD_DIR = Path("static/images/teachers")
 
     @staticmethod
     def get_teacher_by_id(db: Session, teacher_id: uuid.UUID) -> Any:

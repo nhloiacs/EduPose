@@ -2,9 +2,9 @@ import uuid
 from fastapi import APIRouter, Depends, Query, Form, UploadFile
 from sqlalchemy.orm import Session
 from app.database.database import get_db
-from app.schemas.student import StudentCreate, StudentRead, PaginatedStudentResponse
-from app.schemas.base import BaseResponse, PaginationMeta
-from app.services.student_service import StudentService
+from app.modules.student.schema import StudentCreate, StudentRead, PaginatedStudentResponse
+from app.core.responses import BaseResponse, PaginationMeta
+from app.modules.student.service import StudentService
 from app.core.auth_deps import require_principal
 from typing import Optional
 

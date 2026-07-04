@@ -2,8 +2,8 @@ import pytest
 import io
 import uuid
 from starlette.datastructures import UploadFile
-from app.services.teacher_service import TeacherService
-from app.schemas.teacher import TeacherCreate
+from app.modules.teacher.service import TeacherService
+from app.modules.teacher.schema import TeacherCreate
 from app.core.exceptions import ConflictException, NotFoundException
 
 def create_dummy_file(filename="test.jpg"):

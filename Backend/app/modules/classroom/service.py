@@ -3,7 +3,7 @@ from typing import Optional, Tuple, List, Any
 from sqlalchemy.orm import Session
 from app.core.exceptions import ConflictException, NotFoundException
 from app.repositories.classroom_repository import ClassroomRepository
-from app.schemas.classroom import ClassroomCreate
+from app.modules.classroom.schema import ClassroomCreate
 
 class ClassroomService:
     @staticmethod

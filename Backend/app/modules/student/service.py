@@ -5,11 +5,11 @@ from fastapi import UploadFile
 from sqlalchemy.orm import Session
 from app.core.exceptions import ConflictException, NotFoundException
 from app.repositories.student_repository import StudentRepository
-from app.schemas.student import StudentCreate, StudentRead
+from app.modules.student.schema import StudentCreate, StudentRead
 from app.utils.file_manager import FileManager
 
 class StudentService:
-    UPLOAD_DIR = Path("app/static/images/students")
+    UPLOAD_DIR = Path("static/images/students")
 
     @staticmethod
     def _map_to_read_schema(student: Any) -> StudentRead:

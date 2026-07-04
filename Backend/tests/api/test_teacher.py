@@ -38,8 +38,8 @@ def test_create_teacher_api(client):
     assert response.json()["message"] == "Teacher created successfully"
 
 def test_get_teacher_detail_api(client, db_session):
-    from app.services.teacher_service import TeacherService
-    from app.schemas.teacher import TeacherCreate
+    from app.modules.teacher.service import TeacherService
+    from app.modules.teacher.schema import TeacherCreate
     uid = uuid.uuid4().hex[:6]
     data = TeacherCreate(name="Budi", nip=f"123{uid}", email=f"budi{uid}@sekolah.com", role="teacher", password="123")
     teacher = TeacherService.create_teacher(db_session, data, create_service_file())
@@ -48,8 +48,8 @@ def test_get_teacher_detail_api(client, db_session):
     assert response.json()["data"]["name"] == "Budi"
 
 def test_update_teacher_api(client, db_session):
-    from app.services.teacher_service import TeacherService
-    from app.schemas.teacher import TeacherCreate
+    from app.modules.teacher.service import TeacherService
+    from app.modules.teacher.schema import TeacherCreate
     
     uid = uuid.uuid4().hex[:6]
     data = TeacherCreate(name="Ani", nip=f"456{uid}", email=f"ani{uid}@sekolah.com", role="teacher", password="123")
@@ -62,8 +62,8 @@ def test_update_teacher_api(client, db_session):
     assert response.json()["data"]["name"] == "Ani Updated"
 
 def test_delete_teacher_api(client, db_session):
-    from app.services.teacher_service import TeacherService
-    from app.schemas.teacher import TeacherCreate
+    from app.modules.teacher.service import TeacherService
+    from app.modules.teacher.schema import TeacherCreate
     
     uid = uuid.uuid4().hex[:6]
     data = TeacherCreate(name="Budi Del", nip=f"789{uid}", email=f"del{uid}@sekolah.com", role="teacher", password="123")

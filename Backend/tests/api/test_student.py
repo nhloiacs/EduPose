@@ -50,8 +50,8 @@ def test_list_students_api(client):
     assert "items" in response.json()["data"]
 
 def test_get_student_detail_api(client, db_session):
-    from app.services.student_service import StudentService
-    from app.schemas.student import StudentCreate
+    from app.modules.student.service import StudentService
+    from app.modules.student.schema import StudentCreate
     classroom = create_test_classroom(db_session)
     uid = uuid.uuid4().hex[:6]
     data = StudentCreate(name="Budi", nis=f"NIS-{uid}", classroom_id=classroom.id)
@@ -61,8 +61,8 @@ def test_get_student_detail_api(client, db_session):
     assert response.json()["data"]["name"] == "Budi"
 
 def test_update_student_api(client, db_session):
-    from app.services.student_service import StudentService
-    from app.schemas.student import StudentCreate
+    from app.modules.student.service import StudentService
+    from app.modules.student.schema import StudentCreate
     classroom = create_test_classroom(db_session)
     uid = uuid.uuid4().hex[:6]
     data = StudentCreate(name="Ani", nis=f"NIS-{uid}", classroom_id=classroom.id)
@@ -73,8 +73,8 @@ def test_update_student_api(client, db_session):
     assert response.json()["data"]["name"] == "Ani Updated"
 
 def test_delete_student_api(client, db_session):
-    from app.services.student_service import StudentService
-    from app.schemas.student import StudentCreate
+    from app.modules.student.service import StudentService
+    from app.modules.student.schema import StudentCreate
     classroom = create_test_classroom(db_session)
     uid = uuid.uuid4().hex[:6]
     data = StudentCreate(name="Budi Del", nis=f"NIS-{uid}", classroom_id=classroom.id)

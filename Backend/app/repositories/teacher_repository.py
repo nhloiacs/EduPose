@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from app.models.teacher import Teacher
-from app.schemas.teacher import TeacherCreate
+from app.modules.teacher.schema import TeacherCreate
 from typing import Optional
 import uuid
 

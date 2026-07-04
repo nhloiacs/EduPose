@@ -2,8 +2,8 @@ import pytest
 import io
 import uuid
 from starlette.datastructures import UploadFile
-from app.services.student_service import StudentService
-from app.schemas.student import StudentCreate
+from app.modules.student.service import StudentService
+from app.modules.student.schema import StudentCreate
 from app.models.classroom import Classroom
 from app.core.exceptions import ConflictException, NotFoundException
 

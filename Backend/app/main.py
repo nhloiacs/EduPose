@@ -1,9 +1,9 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse        
-from app.api.auth import router as auth_router
-from app.api.teacher import router as teacher_router
-from app.api.classroom import router as classroom_router
-from app.api.student import router as student_router
+from app.modules.auth.api import router as auth_router
+from app.modules.teacher.api import router as teacher_router
+from app.modules.classroom.api import router as classroom_router
+from app.modules.student.api import router as student_router
 from app.core.exceptions import BaseAPIException  
 
 app = FastAPI()
