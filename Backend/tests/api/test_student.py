@@ -97,7 +97,7 @@ def test_get_student_detail_with_metrics_api(client, db_session):
     metric = StudentMetric(session_id=session.id, student_id=student.id, focus_score=90.0, raised_hand_count=2)
     db_session.add(metric)
     db_session.commit()
-    response = client.get(f"/students/{student.id}/detail")
+    response = client.get(f"/students/{student.id}")
     assert response.status_code == 200
     json_data = response.json()["data"]
     assert json_data["name"] == "Budi Metrik"

@@ -51,14 +51,13 @@ def list_students(
     
     return BaseResponse(message="Students retrieved successfully", data=paginated_data)
 
-@router.get("/{student_id}", response_model=BaseResponse[StudentRead], summary="Get student data")
+@router.get("/{student_id}/edit", response_model=BaseResponse[StudentRead], summary="Get student edit data")
 def get_student(student_id: uuid.UUID, db: Session = Depends(get_db), _: dict = Depends(require_principal)):
     """
     Mengambil student by id
     """
     student = StudentService.get_student_by_id(db, student_id)
     return BaseResponse(message="Student retrieved successfully", data=student)
-
 
 @router.patch("/{student_id}", response_model=BaseResponse[StudentRead], summary="Update student")
 def update_student(
@@ -95,7 +94,7 @@ def delete_student(
     return BaseResponse(message="Student deleted successfully", data=None)
 
 
-@router.get("/{student_id}/detail", response_model=BaseResponse[StudentDetailResponse], summary="Get student detail with metrics")
+@router.get("/{student_id}", response_model=BaseResponse[StudentDetailResponse], summary="Get student detail with metrics")
 def get_student_detail(
     student_id: uuid.UUID, 
     db: Session = Depends(get_db), 

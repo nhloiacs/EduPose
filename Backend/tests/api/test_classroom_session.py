@@ -46,7 +46,7 @@ def test_list_sessions_api(client, db_session):
 def test_get_session_edit_api(client, db_session):
     classroom = setup_test_classroom(db_session)
     session = setup_test_session(db_session, classroom.id, subject="Ekonomi")
-    response = client.get(f"/classroom-sessions/{session.id}")
+    response = client.get(f"/classroom-sessions/{session.id}/edit")
     assert response.status_code == 200
     assert response.json()["data"]["subject"] == "Ekonomi"
     assert "metrics_summary" not in response.json()["data"]
@@ -63,7 +63,7 @@ def test_get_session_detail_api(client, db_session):
     )
     db_session.add(metric)
     db_session.commit()
-    response = client.get(f"/classroom-sessions/{session.id}/detail")
+    response = client.get(f"/classroom-sessions/{session.id}")
     assert response.status_code == 200
     data = response.json()["data"]
     assert data["subject"] == "Biologi"

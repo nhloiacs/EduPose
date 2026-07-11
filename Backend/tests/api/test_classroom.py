@@ -56,7 +56,7 @@ def test_get_teacher_detail_api(client, db_session):
     uid = uuid.uuid4().hex[:6]
     data = TeacherCreate(name="Budi", nip=f"123{uid}", email=f"budi{uid}@sekolah.com", role="teacher", password="123")
     teacher = TeacherService.create_teacher(db_session, data, UploadFile(filename="t.jpg", file=io.BytesIO(b"x")))    
-    response = client.get(f"/teachers/{teacher.id}")
+    response = client.get(f"/teachers/{teacher.id}/edit")
     assert response.status_code == 200
     assert response.json()["data"]["name"] == "Budi"
 
@@ -98,7 +98,7 @@ def test_list_classrooms_api(client):
 def test_get_classroom_detail_api(client, db_session):
     data = ClassroomCreate(name=f"Room-{uuid.uuid4().hex[:4]}")
     classroom = ClassroomService.create_classroom(db_session, data)
-    response = client.get(f"/classrooms/{classroom.id}")
+    response = client.get(f"/classrooms/{classroom.id}/edit")
     assert response.status_code == 200
     assert response.json()["data"]["name"] == data.name
 
@@ -129,7 +129,7 @@ def test_get_classroom_metrics_detail_api(client, db_session):
     )
     db_session.add(metric)
     db_session.commit()
-    response = client.get(f"/classrooms/{classroom.id}/detail")
+    response = client.get(f"/classrooms/{classroom.id}")
     assert response.status_code == 200
     metrics = response.json()["data"]["metrics_summary"]
     assert metrics["avg_focus_percentage"] == 80.0

@@ -32,7 +32,7 @@ def list_sessions(
     )
     return BaseResponse(message="Sessions retrieved successfully", data=paginated_data)
 
-@router.get("/{session_id}", response_model=BaseResponse[ClassroomSessionEditRead], summary="Get session subject for edit")
+@router.get("/{session_id}/edit", response_model=BaseResponse[ClassroomSessionEditRead], summary="Get session subject for edit")
 def get_session_edit(
     session_id: uuid.UUID,
     db: Session = Depends(get_db),
@@ -44,7 +44,7 @@ def get_session_edit(
     data = ClassroomSessionService.get_session_edit(db, session_id)
     return BaseResponse(message="Session edit data retrieved", data=data)
 
-@router.get("/{session_id}/detail", response_model=BaseResponse[ClassroomSessionDetailRead], summary="Get session detail")
+@router.get("/{session_id}", response_model=BaseResponse[ClassroomSessionDetailRead], summary="Get session detail")
 def get_session_detail(
     session_id: uuid.UUID,
     db: Session = Depends(get_db),

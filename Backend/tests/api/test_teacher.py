@@ -43,7 +43,7 @@ def test_get_teacher_detail_api(client, db_session):
     uid = uuid.uuid4().hex[:6]
     data = TeacherCreate(name="Budi", nip=f"123{uid}", email=f"budi{uid}@sekolah.com", role="teacher", password="123")
     teacher = TeacherService.create_teacher(db_session, data, create_service_file())
-    response = client.get(f"/teachers/{teacher.id}")
+    response = client.get(f"/teachers/{teacher.id}/edit")
     assert response.status_code == 200
     assert response.json()["data"]["name"] == "Budi"
 

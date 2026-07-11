@@ -55,7 +55,7 @@ def list_teachers(
     
     return BaseResponse(message="Teachers retrieved successfully", data=paginated_data)
 
-@router.get("/{teacher_id}", response_model=BaseResponse[TeacherRead], summary="Get teacher detail")
+@router.get("/{teacher_id}/edit", response_model=BaseResponse[TeacherRead], summary="Get teacher edit data")
 def get_teacher(teacher_id: uuid.UUID, db: Session = Depends(get_db), _: dict = Depends(require_principal)):
     """
     Mengambil teacher by id

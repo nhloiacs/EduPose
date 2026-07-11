@@ -42,7 +42,7 @@ def list_classrooms(
     
     return BaseResponse(message="Classrooms retrieved successfully", data=paginated_data)
 
-@router.get("/{classroom_id}", response_model=BaseResponse[ClassroomRead], summary="Get classroom detail")
+@router.get("/{classroom_id}/edit", response_model=BaseResponse[ClassroomRead], summary="Get classroom edit data")
 def get_classroom(
     classroom_id: uuid.UUID, 
     db: Session = Depends(get_db), 
@@ -80,7 +80,7 @@ def delete_classroom(
     ClassroomService.delete_classroom(db, classroom_id)
     return BaseResponse(message="Classroom deleted successfully", data=None)
 
-@router.get("/{classroom_id}/detail", response_model=BaseResponse[ClassroomDetailResponse])
+@router.get("/{classroom_id}", response_model=BaseResponse[ClassroomDetailResponse])
 def get_classroom_detail(classroom_id: uuid.UUID, db: Session = Depends(get_db), _: dict = Depends(require_principal)):
     """
     Mengambil detail classroom lengkap beserta agregasi metrik (rata-rata fokus, dll)
