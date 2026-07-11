@@ -97,7 +97,7 @@ def test_get_student_detail_with_metrics_api(client, db_session):
     metric = StudentMetric(session_id=session.id, student_id=student.id, focus_score=90.0, raised_hand_count=2)
     db_session.add(metric)
     db_session.commit()
-    response = client.get(f"/students/detail/{student.id}")
+    response = client.get(f"/students/{student.id}/detail")
     assert response.status_code == 200
     json_data = response.json()["data"]
     assert json_data["name"] == "Budi Metrik"
@@ -117,11 +117,11 @@ def test_list_student_sessions_api(client, db_session):
     m1 = StudentMetric(session_id=s1.id, student_id=student.id, focus_score=80.0)
     db_session.add(m1)
     db_session.commit()
-    response = client.get(f"/students/sessions/{student.id}?search=Matematika")
+    response = client.get(f"/students/{student.id}/sessions?search=Matematika")
     assert response.status_code == 200
     items = response.json()["data"]["items"]
     assert len(items) == 1
     assert items[0]["subject"] == "Matematika"
-    response_all = client.get(f"/students/sessions/{student.id}?page=1&size=10")
+    response_all = client.get(f"/students/{student.id}/sessions?page=1&size=10")
     assert response_all.status_code == 200
     assert len(response_all.json()["data"]["items"]) == 1

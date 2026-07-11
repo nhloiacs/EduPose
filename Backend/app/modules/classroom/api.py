@@ -80,7 +80,7 @@ def delete_classroom(
     ClassroomService.delete_classroom(db, classroom_id)
     return BaseResponse(message="Classroom deleted successfully", data=None)
 
-@router.get("/detail/{classroom_id}", response_model=BaseResponse[ClassroomDetailResponse])
+@router.get("/{classroom_id}/detail", response_model=BaseResponse[ClassroomDetailResponse])
 def get_classroom_detail(classroom_id: uuid.UUID, db: Session = Depends(get_db), _: dict = Depends(require_principal)):
     """
     Mengambil detail classroom lengkap beserta agregasi metrik (rata-rata fokus, dll)

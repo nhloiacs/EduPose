@@ -95,7 +95,7 @@ def delete_student(
     return BaseResponse(message="Student deleted successfully", data=None)
 
 
-@router.get("/detail/{student_id}", response_model=BaseResponse[StudentDetailResponse], summary="Get student detail with metrics")
+@router.get("/{student_id}/detail", response_model=BaseResponse[StudentDetailResponse], summary="Get student detail with metrics")
 def get_student_detail(
     student_id: uuid.UUID, 
     db: Session = Depends(get_db), 
@@ -107,7 +107,7 @@ def get_student_detail(
     data = StudentService.get_student_detail_with_metrics(db, student_id)
     return BaseResponse(message="Student detail retrieved successfully", data=data)
 
-@router.get("/sessions/{student_id}", response_model=BaseResponse[PaginatedStudentSessionResponse], summary="Get student session history")
+@router.get("/{student_id}/sessions", response_model=BaseResponse[PaginatedStudentSessionResponse], summary="Get student session history")
 def list_student_sessions(
     student_id: uuid.UUID,
     page: int = Query(1, gt=0),

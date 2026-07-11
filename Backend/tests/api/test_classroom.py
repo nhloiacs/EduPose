@@ -129,7 +129,7 @@ def test_get_classroom_metrics_detail_api(client, db_session):
     )
     db_session.add(metric)
     db_session.commit()
-    response = client.get(f"/classrooms/detail/{classroom.id}")
+    response = client.get(f"/classrooms/{classroom.id}/detail")
     assert response.status_code == 200
     metrics = response.json()["data"]["metrics_summary"]
     assert metrics["avg_focus_percentage"] == 80.0
