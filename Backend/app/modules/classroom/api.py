@@ -2,7 +2,7 @@ import uuid
 from fastapi import APIRouter, Depends, Query, Body
 from sqlalchemy.orm import Session
 from app.database.database import get_db
-from app.modules.classroom.schema import ClassroomCreate, ClassroomRead, PaginatedClassroomResponse, ClassroomUpdate
+from app.modules.classroom.schema import ClassroomCreate, ClassroomRead, PaginatedClassroomResponse, ClassroomUpdate, ClassroomDetailResponse, PaginatedClassroomSessionResponse, PaginatedClassroomStudentResponse
 from app.core.responses import BaseResponse, PaginationMeta
 from app.modules.classroom.service import ClassroomService
 from app.core.auth_deps import require_principal
@@ -79,3 +79,26 @@ def delete_classroom(
     """
     ClassroomService.delete_classroom(db, classroom_id)
     return BaseResponse(message="Classroom deleted successfully", data=None)
+
+@router.get("/detail/{classroom_id}", response_model=BaseResponse[ClassroomDetailResponse])
+def get_classroom_detail(classroom_id: uuid.UUID, db: Session = Depends(get_db), _: dict = Depends(require_principal)):
+    """
+    Mengambil detail classroom lengkap beserta agregasi metrik (rata-rata fokus, dll)
+    """
+    return BaseResponse(message="Classroom detail retrieved successfully", data=ClassroomService.get_classroom_detail(db, classroom_id))
+
+@router.get("/{classroom_id}/sessions", response_model=BaseResponse[PaginatedClassroomSessionResponse])
+def get_classroom_sessions(classroom_id: uuid.UUID, page: int = 1, size: int = 10, search: str = None, db: Session = Depends(get_db)):
+    """
+    Mengambil riwayat sesi yang dimiliki kelas 
+    """
+    items, total = ClassroomService.get_sessions(db, classroom_id, page, size, search)
+    return BaseResponse(message="Classroom sessions retrieved successfully", data={"items": items, "meta": {"total": total, "page": page, "size": size}})
+
+@router.get("/{classroom_id}/students", response_model=BaseResponse[PaginatedClassroomStudentResponse])
+def get_classroom_students(classroom_id: uuid.UUID, page: int = 1, size: int = 10, search: str = None, db: Session = Depends(get_db)):
+    """
+    Mengambil data siswa yang dimiliki kelas
+    """
+    items, total = ClassroomService.get_students(db, classroom_id, page, size, search)
+    return BaseResponse(message="Classroom students retrieved successfully", data={"items": items, "meta": {"total": total, "page": page, "size": size}})
