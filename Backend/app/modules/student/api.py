@@ -2,7 +2,7 @@ import uuid
 from fastapi import APIRouter, Depends, Query, Form, UploadFile
 from sqlalchemy.orm import Session
 from app.database.database import get_db
-from app.modules.student.schema import StudentCreate, StudentRead, PaginatedStudentResponse
+from app.modules.student.schema import StudentCreate, StudentRead, PaginatedStudentResponse, StudentDetailResponse, PaginatedStudentSessionResponse
 from app.core.responses import BaseResponse, PaginationMeta
 from app.modules.student.service import StudentService
 from app.core.auth_deps import require_principal
@@ -51,7 +51,7 @@ def list_students(
     
     return BaseResponse(message="Students retrieved successfully", data=paginated_data)
 
-@router.get("/{student_id}", response_model=BaseResponse[StudentRead], summary="Get student detail")
+@router.get("/{student_id}", response_model=BaseResponse[StudentRead], summary="Get student data")
 def get_student(student_id: uuid.UUID, db: Session = Depends(get_db), _: dict = Depends(require_principal)):
     """
     Mengambil student by id
@@ -93,3 +93,38 @@ def delete_student(
     """
     StudentService.delete_student(db, student_id)
     return BaseResponse(message="Student deleted successfully", data=None)
+
+
+@router.get("/detail/{student_id}", response_model=BaseResponse[StudentDetailResponse], summary="Get student detail with metrics")
+def get_student_detail(
+    student_id: uuid.UUID, 
+    db: Session = Depends(get_db), 
+    _: dict = Depends(require_principal)
+):
+    """
+    Mengambil detail student lengkap beserta agregasi metrik (rata-rata fokus, dll)
+    """
+    data = StudentService.get_student_detail_with_metrics(db, student_id)
+    return BaseResponse(message="Student detail retrieved successfully", data=data)
+
+@router.get("/sessions/{student_id}", response_model=BaseResponse[PaginatedStudentSessionResponse], summary="Get student session history")
+def list_student_sessions(
+    student_id: uuid.UUID,
+    page: int = Query(1, gt=0),
+    size: int = Query(10, gt=0),
+    search: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_principal)
+):
+    """
+    Mengambil riwayat kelas yang dihadiri student dengan data metrik spesifik per sesi
+    """
+    items, total = StudentService.get_student_sessions(db, student_id, page, size, search)
+    
+    paginated_data = PaginatedStudentSessionResponse(
+        items=items,
+        meta=PaginationMeta(total=total, page=page, size=size)
+    )
+    
+    return BaseResponse(message="Student sessions retrieved successfully", data=paginated_data)
+

@@ -6,6 +6,8 @@ from app.main import app
 from app.core.auth_deps import require_principal
 from app.database.database import get_db
 from app.models.classroom import Classroom
+from app.models.classroom_session import ClassroomSession
+from app.models.student_metric import StudentMetric
 
 @pytest.fixture
 def client(db_session):
@@ -82,3 +84,44 @@ def test_delete_student_api(client, db_session):
     response = client.delete(f"/students/{student.id}")
     assert response.status_code == 200
     assert response.json()["message"] == "Student deleted successfully"
+
+def test_get_student_detail_with_metrics_api(client, db_session):
+    from app.modules.student.service import StudentService
+    from app.modules.student.schema import StudentCreate
+    classroom = create_test_classroom(db_session)
+    data = StudentCreate(name="Budi Metrik", nis=f"NIS-{uuid.uuid4().hex[:4]}", classroom_id=classroom.id)
+    student = StudentService.create_student(db_session, data, create_service_file())
+    session = ClassroomSession(classroom_id=classroom.id, subject="Test Subject")
+    db_session.add(session)
+    db_session.commit()
+    metric = StudentMetric(session_id=session.id, student_id=student.id, focus_score=90.0, raised_hand_count=2)
+    db_session.add(metric)
+    db_session.commit()
+    response = client.get(f"/students/detail/{student.id}")
+    assert response.status_code == 200
+    json_data = response.json()["data"]
+    assert json_data["name"] == "Budi Metrik"
+    assert json_data["metrics_summary"]["avg_focus_score"] == 90.0
+    assert json_data["metrics_summary"]["total_raised_hand_count"] == 2
+
+def test_list_student_sessions_api(client, db_session):
+    from app.modules.student.service import StudentService
+    from app.modules.student.schema import StudentCreate
+    classroom = create_test_classroom(db_session)
+    data = StudentCreate(name="Budi Sesi", nis=f"NIS-{uuid.uuid4().hex[:4]}", classroom_id=classroom.id)
+    student = StudentService.create_student(db_session, data, create_service_file())
+    s1 = ClassroomSession(classroom_id=classroom.id, subject="Matematika")
+    s2 = ClassroomSession(classroom_id=classroom.id, subject="Sejarah")
+    db_session.add_all([s1, s2])
+    db_session.commit()
+    m1 = StudentMetric(session_id=s1.id, student_id=student.id, focus_score=80.0)
+    db_session.add(m1)
+    db_session.commit()
+    response = client.get(f"/students/sessions/{student.id}?search=Matematika")
+    assert response.status_code == 200
+    items = response.json()["data"]["items"]
+    assert len(items) == 1
+    assert items[0]["subject"] == "Matematika"
+    response_all = client.get(f"/students/sessions/{student.id}?page=1&size=10")
+    assert response_all.status_code == 200
+    assert len(response_all.json()["data"]["items"]) == 1

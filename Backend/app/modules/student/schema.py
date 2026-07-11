@@ -2,6 +2,7 @@ import uuid
 from typing import Optional, List
 from pydantic import BaseModel, ConfigDict
 from app.core.responses import PaginationMeta 
+from datetime import datetime
 
 class StudentBase(BaseModel):
     name: str
@@ -28,3 +29,35 @@ class StudentRead(StudentBase):
 class PaginatedStudentResponse(BaseModel):
     items: List[StudentRead]
     meta: PaginationMeta
+
+class StudentMetricsSummary(BaseModel):
+    avg_focus_score: float
+    avg_distracted_score: float
+    avg_raised_hand_count: float
+    total_raised_hand_count: int
+
+class StudentDetailResponse(BaseModel):
+    id: uuid.UUID
+    name: str
+    nis: Optional[str]
+    photo_filepath: Optional[str]
+    classroom_id: Optional[uuid.UUID]
+    classroom_name: Optional[str]
+    metrics_summary: StudentMetricsSummary
+
+class SessionMetricDetail(BaseModel):
+    focus_score: float
+    distracted_score: float
+    raised_hand_count: int
+
+class StudentSessionRead(BaseModel):
+    session_id: uuid.UUID
+    subject: Optional[str]
+    start_time: datetime
+    end_time: Optional[datetime]
+    teacher_name: Optional[str]
+    metrics: SessionMetricDetail
+
+class PaginatedStudentSessionResponse(BaseModel):
+    items: List[StudentSessionRead]
+    meta: PaginationMeta 
