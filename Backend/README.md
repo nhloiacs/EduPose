@@ -47,13 +47,13 @@ Berikut adalah status pengembangan fitur saat ini:
 - [x] CRUD teachers untuk role principal
 - [x] CRUD classrooms untuk role principal
 - [x] CRUD students untuk role principal
+- [x] Edit & Delete classroom session untuk role principal
+- [x] Detail review classrooms untuk role principal
+- [x] Detail review students untuk role principal
 
 ### Belum Dibuat / Dalam Pengembangan
 - [ ] Detail review classroom session untuk role teacher
 - [ ] Detail review teachers untuk role principal
-- [ ] Detail review classrooms untuk role principal
-- [ ] Detail review students untuk role principal
-- [ ] Create & Delete classroom session untuk role principal
 - [ ] Buat classroom session untuk role teacher
 - [ ] Absen classroom session untuk role teacher
 - [ ] View classroom session untuk role teacher

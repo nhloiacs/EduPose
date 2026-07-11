@@ -37,6 +37,12 @@ class ClassroomDetailResponse(BaseModel):
     camera_id: Optional[uuid.UUID]
     metrics_summary: ClassroomMetricsSummary
 
+class SessionMetric(BaseModel):
+    active_students: int
+    focus_percentage: float
+    using_phone_count: int
+    raised_hand_count: int
+
 class ClassroomSessionRead(BaseModel):
     session_id: uuid.UUID
     subject: Optional[str]
@@ -49,12 +55,6 @@ class ClassroomSessionRead(BaseModel):
 class PaginatedClassroomSessionResponse(BaseModel):
     items: List[ClassroomSessionRead]
     meta: dict
-
-class SessionMetric(BaseModel):
-    active_students: int
-    focus_percentage: float
-    using_phone_count: int
-    raised_hand_count: int
 
 class ClassroomStudentRead(BaseModel):
     id: uuid.UUID
