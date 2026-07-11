@@ -123,3 +123,15 @@ def test_get_students_search(db_session):
     items, total = ClassroomService.get_students(db_session, classroom.id, page=1, size=10, search="Andi")
     assert total == 1
     assert items[0].name == "Andi"
+
+def test_get_classroom_options(db_session):
+    ClassroomService.create_classroom(db_session, ClassroomCreate(name="Alpha Room"))
+    ClassroomService.create_classroom(db_session, ClassroomCreate(name="Zebra Room"))
+    options = ClassroomService.get_classroom_options(db_session)
+    assert len(options) >= 2
+    searched_options = ClassroomService.get_classroom_options(db_session, search="Alpha")
+    assert len(searched_options) == 1
+    assert searched_options[0].name == "Alpha Room"
+    assert hasattr(options[0], 'id')
+    assert hasattr(options[0], 'name')
+    assert not hasattr(options[0], 'metrics_summary')

@@ -3,7 +3,7 @@ from typing import Optional, Tuple, List, Any
 from sqlalchemy.orm import Session
 from app.core.exceptions import ConflictException, NotFoundException
 from app.repositories.classroom_repository import ClassroomRepository
-from app.modules.classroom.schema import ClassroomCreate, ClassroomSessionRead, SessionMetric, ClassroomDetailResponse, ClassroomMetricsSummary, ClassroomStudentRead
+from app.modules.classroom.schema import ClassroomCreate, ClassroomSessionRead, SessionMetric, ClassroomDetailResponse, ClassroomMetricsSummary, ClassroomStudentRead, ClassroomSelectRead
 
 class ClassroomService:
     @staticmethod
@@ -113,3 +113,8 @@ class ClassroomService:
             ) for s in items
         ]
         return student_list, total
+
+    @staticmethod
+    def get_classroom_options(db: Session, search: Optional[str] = None) -> List[ClassroomSelectRead]:
+        items = ClassroomRepository.get_select_options(db, search)
+        return [ClassroomSelectRead(id=i.id, name=i.name) for i in items]

@@ -119,3 +119,10 @@ class ClassroomRepository:
         total = query.count()
         items = query.offset(skip).limit(limit).all()
         return items, total
+
+    @staticmethod
+    def get_select_options(db: Session, search: str = None):
+        query = db.query(Classroom.id, Classroom.name).filter(Classroom.deleted_at.is_(None))
+        if search:
+            query = query.filter(Classroom.name.ilike(f"%{search}%"))
+        return query.order_by(Classroom.name.asc()).all()

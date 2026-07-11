@@ -155,3 +155,15 @@ def test_get_classroom_students_api(client, db_session):
     assert response.status_code == 200
     items = response.json()["data"]["items"]
     assert any(item["nis"] == unique_nis for item in items)
+
+def test_get_classroom_select_api(client, db_session):
+    data = ClassroomCreate(name=f"Dropdown-{uuid.uuid4().hex[:4]}")
+    classroom = ClassroomService.create_classroom(db_session, data)
+    response = client.get("/classrooms/select")
+    assert response.status_code == 200
+    items = response.json()["data"]
+    assert len(items) >= 1
+    first_item = items[0]
+    assert "id" in first_item
+    assert "name" in first_item
+    assert "camera_id" not in first_item

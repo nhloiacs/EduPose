@@ -66,3 +66,7 @@ class ClassroomStudentRead(BaseModel):
 class PaginatedClassroomStudentResponse(BaseModel):
     items: List[ClassroomStudentRead]
     meta: PaginationMeta
+
+class ClassroomSelectRead(BaseModel):
+    id: uuid.UUID   
+    name: str

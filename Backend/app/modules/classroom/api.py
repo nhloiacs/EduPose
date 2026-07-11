@@ -2,11 +2,11 @@ import uuid
 from fastapi import APIRouter, Depends, Query, Body
 from sqlalchemy.orm import Session
 from app.database.database import get_db
-from app.modules.classroom.schema import ClassroomCreate, ClassroomRead, PaginatedClassroomResponse, ClassroomUpdate, ClassroomDetailResponse, PaginatedClassroomSessionResponse, PaginatedClassroomStudentResponse
+from app.modules.classroom.schema import ClassroomCreate, ClassroomRead, PaginatedClassroomResponse, ClassroomUpdate, ClassroomDetailResponse, PaginatedClassroomSessionResponse, PaginatedClassroomStudentResponse, ClassroomSelectRead
 from app.core.responses import BaseResponse, PaginationMeta
 from app.modules.classroom.service import ClassroomService
 from app.core.auth_deps import require_principal
-from typing import Optional
+from typing import Optional, List
 
 router = APIRouter(prefix="/classrooms", tags=["Classrooms"])
 
@@ -41,6 +41,18 @@ def list_classrooms(
     )
     
     return BaseResponse(message="Classrooms retrieved successfully", data=paginated_data)
+
+@router.get("/select", response_model=BaseResponse[List[ClassroomSelectRead]], summary="Get classroom options for dropdown")
+def get_classroom_select(
+    search: Optional[str] = Query(None), 
+    db: Session = Depends(get_db), 
+    _: dict = Depends(require_principal)
+):
+    """
+    Mengambil list ringan (id, name) untuk kebutuhan select/dropdown di frontend
+    """
+    items = ClassroomService.get_classroom_options(db, search)
+    return BaseResponse(message="Classroom options retrieved successfully", data=items)
 
 @router.get("/{classroom_id}/edit", response_model=BaseResponse[ClassroomRead], summary="Get classroom edit data")
 def get_classroom(
