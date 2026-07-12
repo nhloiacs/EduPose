@@ -11,6 +11,12 @@ class ClassroomSessionEditRead(BaseModel):
     id: uuid.UUID
     subject: Optional[str]
 
+class SessionMetricSummary(BaseModel):
+    avg_focus_percentage: float
+    avg_active_students: float
+    total_using_phone: int
+    total_raised_hand: int
+
 class ClassroomSessionListRead(BaseModel):
     id: uuid.UUID
     classroom_name: Optional[str]
@@ -24,12 +30,6 @@ class ClassroomSessionListRead(BaseModel):
 class PaginatedClassroomSessionResponse(BaseModel):
     items: List[ClassroomSessionListRead]
     meta: PaginationMeta
-
-class SessionMetricSummary(BaseModel):
-    avg_focus_percentage: float
-    avg_active_students: float
-    total_using_phone: int
-    total_raised_hand: int
 
 class ClassroomSessionDetailRead(BaseModel):
     id: uuid.UUID
