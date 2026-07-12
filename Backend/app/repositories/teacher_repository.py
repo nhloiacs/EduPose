@@ -1,9 +1,12 @@
-from sqlalchemy.orm import Session
-from sqlalchemy import func, or_
-from app.models.teacher import Teacher
-from app.modules.teacher.schema import TeacherCreate
-from typing import Optional
 import uuid
+from sqlalchemy.orm import Session
+from sqlalchemy import func, or_, cast, String
+from typing import Optional
+from app.modules.teacher.schema import TeacherCreate
+from app.models.teacher import Teacher
+from app.models.classroom_session import ClassroomSession
+from app.models.classroom_metric import ClassroomMetric
+from app.models.classroom import Classroom
 
 class TeacherRepository:
     @staticmethod
@@ -101,3 +104,51 @@ class TeacherRepository:
         db.commit()
         db.refresh(teacher)
         return teacher
+
+    @staticmethod
+    def get_detail_with_avg_metrics(db: Session, teacher_id: uuid.UUID):
+        return db.query(
+            Teacher,
+            func.coalesce(func.avg(ClassroomMetric.focus_percentage), 0).label("avg_focus"),
+            func.coalesce(func.avg(ClassroomMetric.active_students), 0).label("avg_active"),
+            func.coalesce(func.avg(ClassroomMetric.using_phone_count), 0).label("avg_phone"),
+            func.coalesce(func.avg(ClassroomMetric.raised_hand_count), 0).label("avg_raised")
+        ).outerjoin(
+            ClassroomSession, Teacher.id == ClassroomSession.teacher_id
+        ).outerjoin(
+            ClassroomMetric, ClassroomSession.id == ClassroomMetric.session_id
+        ).filter(
+            Teacher.id == teacher_id,
+            Teacher.deleted_at.is_(None)
+        ).group_by(Teacher.id).first()
+
+    @staticmethod
+    def get_teacher_sessions(db: Session, teacher_id: uuid.UUID, skip: int, limit: int, search: Optional[str] = None):
+        query = db.query(
+            ClassroomSession,
+            ClassroomMetric,
+            Classroom.name.label("classroom_name")
+        ).outerjoin(
+            Classroom, ClassroomSession.classroom_id == Classroom.id
+        ).outerjoin(
+            ClassroomMetric, ClassroomSession.id == ClassroomMetric.session_id
+        ).filter(
+            ClassroomSession.teacher_id == teacher_id,
+            ClassroomSession.deleted_at.is_(None)
+        )
+        if search:
+            search_term = f"%{search}%"
+            search_filters = [
+                ClassroomSession.subject.ilike(search_term),
+                Classroom.name.ilike(search_term),
+                cast(ClassroomSession.start_time, String).ilike(search_term)
+            ]
+            try:
+                search_uuid = uuid.UUID(search)
+                search_filters.append(ClassroomSession.id == search_uuid)
+            except ValueError:
+                pass
+            query = query.filter(or_(*search_filters))
+        total = query.count()
+        items = query.order_by(ClassroomSession.start_time.desc()).offset(skip).limit(limit).all()
+        return items, total

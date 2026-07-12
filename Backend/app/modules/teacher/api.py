@@ -2,7 +2,7 @@ import uuid
 from fastapi import APIRouter, Depends, Query, Form, UploadFile
 from sqlalchemy.orm import Session
 from app.database.database import get_db
-from app.modules.teacher.schema import TeacherCreate, TeacherRead, PaginatedTeacherResponse 
+from app.modules.teacher.schema import TeacherCreate, TeacherRead, PaginatedTeacherResponse, TeacherDetailResponse, PaginatedTeacherSessionResponse
 from app.core.responses import BaseResponse, PaginationMeta
 from app.modules.teacher.service import TeacherService
 from app.core.auth_deps import require_principal
@@ -99,3 +99,36 @@ def delete_teacher(
     """
     TeacherService.delete_teacher(db, str(teacher_id))
     return BaseResponse(message="Teacher deleted successfully", data=None)
+
+@router.get("/{teacher_id}", response_model=BaseResponse[TeacherDetailResponse], summary="Get teacher detail with metrics")
+def get_teacher_detail(
+    teacher_id: uuid.UUID, 
+    db: Session = Depends(get_db), 
+    _: dict = Depends(require_principal)
+):
+    """
+    Mengambil detail guru lengkap beserta agregasi metrik pengajaran
+    """
+    data = TeacherService.get_teacher_detail(db, teacher_id)
+    return BaseResponse(message="Teacher detail retrieved successfully", data=data)
+
+@router.get("/{teacher_id}/sessions", response_model=BaseResponse[PaginatedTeacherSessionResponse], summary="Get teacher session history")
+def list_teacher_sessions(
+    teacher_id: uuid.UUID,
+    page: int = Query(1, gt=0),
+    size: int = Query(10, gt=0),
+    search: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_principal)
+):
+    """
+    Mengambil riwayat sesi yang pernah diajarkan guru ini dengan metrik per sesinya
+    """
+    items, total = TeacherService.get_teacher_sessions(db, teacher_id, page, size, search)
+    
+    paginated_data = PaginatedTeacherSessionResponse(
+        items=items,
+        meta=PaginationMeta(total=total, page=page, size=size)
+    )
+    
+    return BaseResponse(message="Teacher sessions retrieved successfully", data=paginated_data)
