@@ -4,7 +4,7 @@ from typing import Optional, Tuple, List, Any
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
 from app.core.exceptions import ConflictException, NotFoundException
-from app.repositories.student_repository import StudentRepository
+from app.modules.student.repository import StudentRepository
 from app.modules.student.schema import StudentCreate, StudentRead, StudentDetailResponse, StudentMetricsSummary, StudentSessionRead
 from app.utils.file_manager import FileManager
 

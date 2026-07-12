@@ -2,7 +2,7 @@ import uuid
 from typing import Optional, Tuple, List, Any
 from sqlalchemy.orm import Session
 from app.core.exceptions import ConflictException, NotFoundException
-from app.repositories.classroom_repository import ClassroomRepository
+from app.modules.classroom.repository import ClassroomRepository
 from app.modules.classroom.schema import ClassroomCreate, ClassroomSessionRead, SessionMetric, ClassroomDetailResponse, ClassroomMetricsSummary, ClassroomStudentRead, ClassroomSelectRead
 
 class ClassroomService:

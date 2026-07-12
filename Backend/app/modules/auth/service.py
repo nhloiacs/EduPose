@@ -7,9 +7,8 @@ from app.core.security import (
     verify_password,
     create_access_token
 )
-
 from app.models.teacher import Teacher
-from app.repositories.teacher_repository import TeacherRepository
+from app.modules.teacher.repository import TeacherRepository
 
 class AuthService:
     @staticmethod

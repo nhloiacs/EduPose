@@ -14,11 +14,18 @@ class ClassroomSessionRepository:
         query = db.query(
             ClassroomSession,
             Classroom.name.label("classroom_name"),
-            Teacher.name.label("teacher_name")
+            Teacher.name.label("teacher_name"),
+            # --- Tambahan Agregasi Metrik ---
+            func.coalesce(func.avg(ClassroomMetric.focus_percentage), 0).label("avg_focus"),
+            func.coalesce(func.avg(ClassroomMetric.active_students), 0).label("avg_active"),
+            func.coalesce(func.sum(ClassroomMetric.using_phone_count), 0).label("sum_phone"),
+            func.coalesce(func.sum(ClassroomMetric.raised_hand_count), 0).label("sum_raised")
         ).outerjoin(
             Classroom, ClassroomSession.classroom_id == Classroom.id
         ).outerjoin(
             Teacher, ClassroomSession.teacher_id == Teacher.id
+        ).outerjoin(
+            ClassroomMetric, ClassroomSession.id == ClassroomMetric.session_id # <--- Tambahan Join
         ).filter(ClassroomSession.deleted_at.is_(None))
 
         if search:
@@ -31,7 +38,7 @@ class ClassroomSessionRepository:
                     cast(ClassroomSession.start_time, String).ilike(search_term)
                 )
             )
-        
+        query = query.group_by(ClassroomSession.id, Classroom.id, Teacher.id)
         total = query.count()
         items = query.order_by(ClassroomSession.start_time.desc()).offset(skip).limit(limit).all()
         return items, total

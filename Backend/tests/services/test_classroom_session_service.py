@@ -56,13 +56,21 @@ def setup_student_metric(db, session_id, student_id, focus=85.0):
 
 def test_get_all_sessions(db_session):
     classroom = setup_classroom(db_session)
-    setup_session(db_session, classroom.id, subject="Kimia")
-    setup_session(db_session, classroom.id, subject="Fisika")
+    session1 = setup_session(db_session, classroom.id, subject="Kimia")
+    session2 = setup_session(db_session, classroom.id, subject="Fisika")
+    setup_classroom_metric(db_session, session1.id, focus=80.0, active=20, phone=1, raised=2)
+    setup_classroom_metric(db_session, session1.id, focus=100.0, active=30, phone=3, raised=4)
     items, total = ClassroomSessionService.get_all_sessions(db_session, page=1, size=10)
     assert total >= 2
     subjects = [item.subject for item in items]
     assert "Kimia" in subjects
     assert "Fisika" in subjects
+    kimia_session = next((item for item in items if item.id == session1.id), None)
+    assert kimia_session is not None
+    assert kimia_session.metrics_summary.avg_focus_percentage == 90.0
+    assert kimia_session.metrics_summary.avg_active_students == 25.0
+    assert kimia_session.metrics_summary.total_using_phone == 4
+    assert kimia_session.metrics_summary.total_raised_hand == 6
 
 def test_get_session_edit_success(db_session):
     classroom = setup_classroom(db_session)

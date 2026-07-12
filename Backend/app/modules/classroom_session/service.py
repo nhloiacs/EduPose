@@ -2,7 +2,7 @@ import uuid
 from sqlalchemy.orm import Session
 from typing import List, Tuple, Optional
 from app.core.exceptions import NotFoundException
-from app.repositories.classroom_session_repository import ClassroomSessionRepository
+from app.modules.classroom_session.repository import ClassroomSessionRepository
 from app.modules.classroom_session.schema import (
     ClassroomSessionListRead, ClassroomSessionEditRead, 
     ClassroomSessionDetailRead, SessionMetricSummary, ClassroomSessionUpdate
@@ -15,9 +15,8 @@ class ClassroomSessionService:
         page = max(1, page)
         skip = (page - 1) * size
         items, total = ClassroomSessionRepository.get_all(db, skip, size, search)
-        
         result = []
-        for session, classroom_name, teacher_name in items:
+        for session, classroom_name, teacher_name, avg_focus, avg_active, sum_phone, sum_raised in items:
             result.append(ClassroomSessionListRead(
                 id=session.id,
                 classroom_name=classroom_name,
@@ -25,7 +24,14 @@ class ClassroomSessionService:
                 subject=session.subject,
                 start_time=session.start_time,
                 end_time=session.end_time,
-                status=session.status
+                status=session.status,
+                # --- Tambahan mapping ke schema metrics_summary ---
+                metrics_summary=SessionMetricSummary(
+                    avg_focus_percentage=round(avg_focus, 2),
+                    avg_active_students=round(avg_active, 2),
+                    total_using_phone=int(sum_phone),
+                    total_raised_hand=int(sum_raised)
+                )
             ))
         return result, total
 
