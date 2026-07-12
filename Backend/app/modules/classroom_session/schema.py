@@ -19,6 +19,7 @@ class ClassroomSessionListRead(BaseModel):
     start_time: datetime
     end_time: Optional[datetime]
     status: str
+    metrics_summary: SessionMetricSummary
 
 class PaginatedClassroomSessionResponse(BaseModel):
     items: List[ClassroomSessionListRead]

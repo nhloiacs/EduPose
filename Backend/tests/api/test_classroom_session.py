@@ -36,12 +36,27 @@ def setup_test_session(db, classroom_id, subject="Sosiologi"):
 
 def test_list_sessions_api(client, db_session):
     classroom = setup_test_classroom(db_session)
-    setup_test_session(db_session, classroom.id, subject="Sosiologi")
+    session = setup_test_session(db_session, classroom.id, subject="Sosiologi")
+    metric = ClassroomMetric(
+        session_id=session.id, 
+        focus_percentage=80.0, 
+        active_students=20,
+        using_phone_count=1,
+        raised_hand_count=2
+    )
+    db_session.add(metric)
+    db_session.commit()
     response = client.get("/classroom-sessions/?page=1&size=10")
     assert response.status_code == 200
     data = response.json()["data"]
     assert "items" in data
     assert len(data["items"]) >= 1
+    first_item = data["items"][0]
+    assert "metrics_summary" in first_item
+    assert first_item["metrics_summary"]["avg_focus_percentage"] == 80.0
+    assert first_item["metrics_summary"]["avg_active_students"] == 20.0
+    assert first_item["metrics_summary"]["total_using_phone"] == 1
+    assert first_item["metrics_summary"]["total_raised_hand"] == 2
 
 def test_get_session_edit_api(client, db_session):
     classroom = setup_test_classroom(db_session)
