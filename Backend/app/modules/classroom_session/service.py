@@ -2,7 +2,7 @@ import uuid
 from sqlalchemy.orm import Session
 from typing import List, Tuple, Optional
 from app.core.exceptions import NotFoundException
-from app.repositories.classroom_session_repository import ClassroomSessionRepository
+from app.modules.classroom_session.repository import ClassroomSessionRepository
 from app.modules.classroom_session.schema import (
     ClassroomSessionListRead, ClassroomSessionEditRead, 
     ClassroomSessionDetailRead, SessionMetricSummary, ClassroomSessionUpdate

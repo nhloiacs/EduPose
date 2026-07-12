@@ -7,7 +7,7 @@ from fastapi import UploadFile, HTTPException
 from sqlalchemy.orm import Session
 from app.core.exceptions import ConflictException, NotFoundException
 from app.core.security import hash_password
-from app.repositories.teacher_repository import TeacherRepository
+from app.modules.teacher.repository import TeacherRepository
 from app.modules.teacher.schema import TeacherCreate, TeacherUpdate, TeacherDetailResponse, TeacherMetricsSummary, SessionMetricDetail, TeacherSessionRead
 from app.utils.file_manager import FileManager
 
