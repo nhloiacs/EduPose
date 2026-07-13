@@ -44,7 +44,9 @@ import {
   mergeStudentsFromBackend,
   persistSession,
   readStoredSession,
+  setApiAuthToken,
 } from './lib/backendApi';
+import LoginPage from './components/LoginPage';
 
 // Register Chart.js components
 ChartJS.register(
@@ -60,27 +62,10 @@ ChartJS.register(
   Filler
 );
 
-// Initial Mock Data
-const INITIAL_STUDENTS = [
-  { id: 1, name: "Andi Pratama", class: "X-A", attention: 92, emotion: "Senang", status: "Aktif", trend: "up" },
-  { id: 2, name: "Budi Santoso", class: "X-A", attention: 45, emotion: "Bosan", status: "Aktif", trend: "down" },
-  { id: 3, name: "Citra Dewi", class: "X-B", attention: 87, emotion: "Netral", status: "Aktif", trend: "up" },
-  { id: 4, name: "Dian Sari", class: "X-B", attention: 38, emotion: "Mengantuk", status: "Aktif", trend: "down" },
-  { id: 5, name: "Eka Putri", class: "XI-A", attention: 95, emotion: "Senang", status: "Aktif", trend: "up" },
-  { id: 6, name: "Fajar Rahman", class: "XI-A", attention: 55, emotion: "Bingung", status: "Aktif", trend: "down" },
-  { id: 7, name: "Gita Ayu", class: "XI-B", attention: 78, emotion: "Netral", status: "Aktif", trend: "up" },
-  { id: 8, name: "Hadi Wijaya", class: "XI-B", attention: 82, emotion: "Senang", status: "Aktif", trend: "up" },
-  { id: 9, name: "Indah Permata", class: "XII-A", attention: 63, emotion: "Bosan", status: "Aktif", trend: "up" },
-  { id: 10, name: "Joko Susilo", class: "XII-A", attention: 71, emotion: "Netral", status: "Tidak Aktif", trend: "up" },
-  { id: 11, name: "Kartika Sari", class: "XII-B", attention: 88, emotion: "Senang", status: "Aktif", trend: "up" },
-  { id: 12, name: "Lulu Hernawan", class: "XII-B", attention: 42, emotion: "Mengantuk", status: "Aktif", trend: "down" }
-];
-
-const INITIAL_WARNINGS = [
-  { id: 1, studentId: 2, name: "Budi Santoso", desc: "Tidak fokus > 10 menit", time: "2 menit lalu" },
-  { id: 2, studentId: 4, name: "Dian Sari", desc: "Terdeteksi mengantuk", time: "6 menit lalu" },
-  { id: 3, studentId: 12, name: "Lulu Hernawan", desc: "Terdeteksi mengantuk", time: "12 menit lalu" }
-];
+// Backend-driven empty states
+const INITIAL_STUDENTS = [];
+const INITIAL_WARNINGS = [];
+const INITIAL_CAMERA_BOXES = [];
 
 const WEB_SOCKET_URL = import.meta.env.VITE_WEBSOCKET_URL?.trim() ?? '';
 
@@ -115,17 +100,6 @@ const normalizeWebSocketWarning = (payload) => {
   };
 };
 
-const INITIAL_CAMERA_BOXES = [
-  { name: "Andi Pratama", x: 12, y: 15, w: 10, h: 15, focus: true, emotion: "Senang" },
-  { name: "Budi Santoso", x: 28, y: 18, w: 9, h: 15, focus: false, emotion: "Bosan" },
-  { name: "Citra Dewi", x: 45, y: 16, w: 10, h: 15, focus: true, emotion: "Netral" },
-  { name: "Dian Sari", x: 62, y: 20, w: 9, h: 15, focus: false, emotion: "Mengantuk" },
-  { name: "Eka Putri", x: 80, y: 15, w: 10, h: 15, focus: true, emotion: "Senang" },
-  { name: "Fajar Rahman", x: 20, y: 45, w: 11, h: 18, focus: false, emotion: "Bingung" },
-  { name: "Gita Ayu", x: 48, y: 42, w: 11, h: 18, focus: true, emotion: "Netral" },
-  { name: "Hadi Wijaya", x: 74, y: 44, w: 11, h: 18, focus: true, emotion: "Senang" }
-];
-
 export default function App() {
   const storedSession = readStoredSession();
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -152,149 +126,46 @@ export default function App() {
   const canvasRef = useRef(null);
   const imgRef = useRef(null);
   const websocketRef = useRef(null);
-  const [liveLog, setLiveLog] = useState(() =>
-    INITIAL_CAMERA_BOXES.map(box => ({
-      name: box.name,
-      status: box.focus ? 'Attentive' : 'Not Attentive',
-    }))
-  );
-  const [connectionState, setConnectionState] = useState(WEB_SOCKET_URL ? 'connecting' : 'mock');
+  const [liveLog, setLiveLog] = useState([]);
+  const [connectionState, setConnectionState] = useState(WEB_SOCKET_URL ? 'connecting' : 'closed');
   
   // Profile settings state
   const [profileData, setProfileData] = useState({
-    name: "Ahmad Dahlan, S.Pd.",
+    name: "",
     email: "",
-    role: "teacher",
-    nip: "19670812 199203 1 002",
-    school: "SMA Negeri 1 Jakarta",
-    subject: "Matematika & Wali Kelas X-A",
-    deviceIP: "192.168.1.15",
-    deviceName: "Raspberry Pi 4 Model B (8GB)",
-    cameraRes: "1080p, 30fps",
-    detectionModel: "MobileNetV2 + SSD (Emotion & Attention Classifier)",
-    autoRecord: true,
-    pushNotification: true,
-    sleepThreshold: 45,
-    unfocusThreshold: 10,
+    role: "",
+    nip: "",
+    school: "",
+    subject: "",
+    deviceIP: "",
+    deviceName: "",
+    cameraRes: "",
+    detectionModel: "",
+    autoRecord: false,
+    pushNotification: false,
+    sleepThreshold: 0,
+    unfocusThreshold: 0,
     photoFilepath: '',
-    avatarInitials: 'AD'
+    avatarInitials: ''
   });
 
   const [showToast, setShowToast] = useState(false);
 
-  // Class rankings data derived from students
-  const classStats = [
-    { name: "X-A", value: 92, trend: "up" },
-    { name: "X-B", value: 87, trend: "up" },
-    { name: "XI-A", value: 84, trend: "down" },
-    { name: "XI-B", value: 78, trend: "down" },
-    { name: "XII-A", value: 75, trend: "down" },
-    { name: "XII-B", value: 71, trend: "down" }
-  ];
+  useEffect(() => {
+    setApiAuthToken(authToken);
+  }, [authToken]);
 
   // Dynamic fluctuation state for bounding boxes
   const [boxes, setBoxes] = useState(INITIAL_CAMERA_BOXES);
 
-  // Live Camera Feed Simulator Loop
+  // Live Camera Feed Canvas
   useEffect(() => {
-    // Fluctuate sizes and boxes to simulate active computer vision tracking
-    const updateCoordinates = () => {
-      setBoxes(prev => prev.map(box => {
-        // Random drift (-0.2% to +0.2%)
-        const dx = (Math.random() - 0.5) * 0.4;
-        const dy = (Math.random() - 0.5) * 0.4;
-        const dw = (Math.random() - 0.5) * 0.2;
-        const dh = (Math.random() - 0.5) * 0.2;
-        
-        return {
-          ...box,
-          x: Math.max(5, Math.min(85, box.x + dx)),
-          y: Math.max(5, Math.min(80, box.y + dy)),
-          w: Math.max(8, Math.min(15, box.w + dw)),
-          h: Math.max(12, Math.min(22, box.h + dh))
-        };
-      }));
-    };
-
-    const intervalId = setInterval(updateCoordinates, 150);
-
-    // Every 8 seconds, simulate a student shifting attention or emotion
-    let stateIntervalId;
-    if (!WEB_SOCKET_URL) {
-      stateIntervalId = setInterval(() => {
-        setBoxes(prev => {
-          const indexToChange = Math.floor(Math.random() * prev.length);
-          const updated = [...prev];
-          const current = updated[indexToChange];
-          
-          // Toggle focus
-          const nextFocus = !current.focus;
-          let nextEmotion = "Netral";
-          if (nextFocus) {
-            nextEmotion = Math.random() > 0.5 ? "Senang" : "Netral";
-          } else {
-            const rand = Math.random();
-            nextEmotion = rand < 0.33 ? "Bosan" : (rand < 0.66 ? "Mengantuk" : "Bingung");
-          }
-
-          updated[indexToChange] = {
-            ...current,
-            focus: nextFocus,
-            emotion: nextEmotion
-          };
-
-          // Update live results sidebar
-          setLiveLog(updated.map(b => ({
-            name: b.name,
-            status: b.focus ? "Attentive" : "Not Attentive"
-          })));
-
-          // Update main students table data if matching
-          setStudents(sPrev => sPrev.map(st => {
-            if (st.name === current.name) {
-              const diff = nextFocus ? 5 : -5;
-              const newAtt = Math.max(20, Math.min(100, st.attention + diff));
-              return {
-                ...st,
-                attention: newAtt,
-                emotion: nextEmotion,
-                trend: nextFocus ? "up" : "down"
-              };
-            }
-            return st;
-          }));
-
-          // Add warning alert if student became not attentive
-          if (!nextFocus) {
-            const timestamp = "Baru saja";
-            const alertsList = [
-              "Terdeteksi bosan",
-              "Terdeteksi bingung",
-              "Terdeteksi mengantuk",
-              "Tidak fokus > 5 menit"
-            ];
-            const randomAlertDesc = nextEmotion === "Mengantuk" ? "Terdeteksi mengantuk" : 
-                                    (nextEmotion === "Bosan" ? "Terdeteksi bosan" : alertsList[Math.floor(Math.random() * alertsList.length)]);
-            
-            setWarnings(wPrev => [
-              { id: Date.now(), studentId: 999, name: current.name, desc: randomAlertDesc, time: timestamp },
-              ...wPrev.slice(0, 5) // Keep last 6 warnings
-            ]);
-          }
-
-          return updated;
-        });
-      }, 7000);
-    }
-
-    // Draw loops on canvas
     const drawCanvas = () => {
       const canvas = canvasRef.current;
       const img = imgRef.current;
       if (!canvas || !img) return;
 
       const ctx = canvas.getContext('2d');
-      // Set canvas size to match image layout size
       const rect = img.getBoundingClientRect();
       canvas.width = rect.width;
       canvas.height = rect.height;
@@ -302,88 +173,70 @@ export default function App() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       boxes.forEach(box => {
-        // Calculate coordinate in pixels
         const px = (box.x / 100) * canvas.width;
         const py = (box.y / 100) * canvas.height;
         const pw = (box.w / 100) * canvas.width;
         const ph = (box.h / 100) * canvas.height;
 
-        // Choose color based on focus (matching success/danger theme)
-        const mainColor = box.focus ? '#10b981' : '#ef4444'; 
-        
-        // Draw bounding box
+        const mainColor = box.focus ? '#10b981' : '#ef4444';
+
         ctx.strokeStyle = mainColor;
         ctx.lineWidth = 2;
-        
-        // Draw standard corners style (CV HUD style)
+
         const cornerLength = Math.min(pw, ph) * 0.25;
-        
-        // Top-Left
+
         ctx.beginPath();
         ctx.moveTo(px, py + cornerLength);
         ctx.lineTo(px, py);
         ctx.lineTo(px + cornerLength, py);
         ctx.stroke();
 
-        // Top-Right
         ctx.beginPath();
         ctx.moveTo(px + pw - cornerLength, py);
         ctx.lineTo(px + pw, py);
         ctx.lineTo(px + pw, py + cornerLength);
         ctx.stroke();
 
-        // Bottom-Left
         ctx.beginPath();
         ctx.moveTo(px, py + ph - cornerLength);
         ctx.lineTo(px, py + ph);
         ctx.lineTo(px + cornerLength, py + ph);
         ctx.stroke();
 
-        // Bottom-Right
         ctx.beginPath();
         ctx.moveTo(px + pw - cornerLength, py + ph);
         ctx.lineTo(px + pw, py + ph);
         ctx.lineTo(px + pw, py + ph - cornerLength);
         ctx.stroke();
 
-        // Semi-transparent box background
         ctx.fillStyle = box.focus ? 'rgba(16, 185, 129, 0.04)' : 'rgba(239, 68, 68, 0.04)';
         ctx.fillRect(px, py, pw, ph);
 
-        // Draw label background
         ctx.fillStyle = mainColor;
         const labelText = `${box.name.split(' ')[0]}: ${box.emotion}`;
         ctx.font = 'bold 10px Outfit, sans-serif';
         const textWidth = ctx.measureText(labelText).width;
-        
+
         ctx.fillRect(px, py - 16, textWidth + 12, 16);
 
-        // Draw text
         ctx.fillStyle = '#ffffff';
         ctx.fillText(labelText, px + 6, py - 4);
       });
     };
 
-    // Trigger canvas draw after image is loaded or immediately
     if (imgRef.current && imgRef.current.complete) {
       drawCanvas();
     } else if (imgRef.current) {
       imgRef.current.onload = drawCanvas;
     }
 
-    // Window resize listener
     window.addEventListener('resize', drawCanvas);
 
-    // Run drawing loop periodically as coordinates fluctuate
-    const animationInterval = setInterval(drawCanvas, 150);
-
     return () => {
-      clearInterval(intervalId);
-      if (stateIntervalId) {
-        clearInterval(stateIntervalId);
-      }
-      clearInterval(animationInterval);
       window.removeEventListener('resize', drawCanvas);
+      if (imgRef.current) {
+        imgRef.current.onload = null;
+      }
     };
   }, [boxes]);
 
@@ -499,19 +352,25 @@ export default function App() {
           return;
         }
 
-        const remoteStudents = studentsResponse?.data?.items ?? [];
-        const remoteClassrooms = classroomsResponse?.data?.items ?? [];
-        const remoteTeachers = teachersResponse?.data?.items ?? [];
+        const remoteStudents = studentsResponse.items;
+        const remoteClassrooms = classroomsResponse.items;
+        const remoteTeachers = teachersResponse.items;
 
-        const mergedStudents = mergeStudentsFromBackend(remoteStudents, INITIAL_STUDENTS);
-        const mergedBoxes = mergeBoxesFromStudents(mergedStudents, INITIAL_CAMERA_BOXES);
+        const mergedStudents = mergeStudentsFromBackend(remoteStudents);
+        const mergedBoxes = mergeBoxesFromStudents(mergedStudents);
 
         setStudents(mergedStudents);
         setBoxes(mergedBoxes);
+        setLiveLog(mergedStudents.map((student) => ({
+          name: student.name,
+          status: student.status,
+        })));
         setBackendClassrooms(remoteClassrooms);
         setBackendTeachers(remoteTeachers);
         setSyncState('connected');
-        setBackendMessage(`Sinkron ${remoteStudents.length} siswa, ${remoteClassrooms.length} kelas, dan ${remoteTeachers.length} guru.`);
+        setBackendMessage(
+          `Sinkron ${studentsResponse.meta.total} siswa, ${classroomsResponse.meta.total} kelas, dan ${teachersResponse.meta.total} guru.`
+        );
       } catch (error) {
         if (!isActive) {
           return;
@@ -536,7 +395,31 @@ export default function App() {
   const alertCount = warnings.length;
   const classroomFilterOptions = backendClassrooms.length > 0
     ? backendClassrooms.map((classroom) => classroom.name).filter(Boolean)
-    : ['X-A', 'X-B', 'XI-A', 'XI-B', 'XII-A', 'XII-B'];
+    : [];
+  const classStats = backendClassrooms.map((classroom) => ({
+    name: classroom.name,
+    value: students.filter((student) => student.class === classroom.name).length,
+    trend: 'up',
+  }));
+  const averageAttention = students.length > 0
+    ? (students.reduce((sum, student) => sum + Number(student.attention ?? 0), 0) / students.length).toFixed(1)
+    : null;
+  const topStudent = students.reduce((bestStudent, student) => {
+    if (!bestStudent) {
+      return student;
+    }
+
+    return Number(student.attention ?? 0) > Number(bestStudent.attention ?? 0) ? student : bestStudent;
+  }, null);
+  const bestClassroom = backendClassrooms.reduce((best, classroom) => {
+    const studentCount = students.filter((student) => student.class === classroom.name).length;
+
+    if (!best || studentCount > best.studentCount) {
+      return { name: classroom.name, studentCount };
+    }
+
+    return best;
+  }, null);
 
   const handleLoginSubmit = async (event) => {
     event.preventDefault();
@@ -546,7 +429,7 @@ export default function App() {
 
     try {
       const response = await loginRequest(loginForm.email.trim(), loginForm.password);
-      const sessionUser = response?.data ?? null;
+      const sessionUser = response.data ?? null;
       const token = sessionUser?.token ?? '';
 
       if (!token) {
@@ -561,7 +444,7 @@ export default function App() {
         password: '',
       }));
       setActiveTab('dashboard');
-      setBackendMessage('Login berhasil. Menyinkronkan data backend...');
+      setBackendMessage(`${response.message || 'Login berhasil'}. Menyinkronkan data backend...`);
     } catch (error) {
       setSyncState('error');
       setBackendMessage('Login gagal');
@@ -577,9 +460,10 @@ export default function App() {
     setBackendTeachers([]);
     setSyncState('idle');
     setBackendMessage('Belum login ke backend');
-    setStudents(INITIAL_STUDENTS);
-    setWarnings(INITIAL_WARNINGS);
-    setBoxes(INITIAL_CAMERA_BOXES);
+    setStudents([]);
+    setWarnings([]);
+    setBoxes([]);
+    setLiveLog([]);
   };
 
   // Save Config Handlers
@@ -590,13 +474,14 @@ export default function App() {
   };
 
   // Chart Data Configurations
-  // 1. Dashboard: Tren Atensi Harian
+  const emotionCategories = ['Senang', 'Netral', 'Bosan', 'Bingung', 'Mengantuk'];
+
   const dailyAttentionData = {
-    labels: ['07:00', '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00'],
+    labels: [],
     datasets: [
       {
-        label: 'Tingkat Atensi (%)',
-        data: [88, 85, 74, 81, 72, 54, 73, 66, 58],
+        label: 'Data Backend',
+        data: [],
         fill: true,
         borderColor: '#6366f1',
         backgroundColor: 'rgba(99, 102, 241, 0.06)',
@@ -635,18 +520,11 @@ export default function App() {
     }
   };
 
-  // 2. Dashboard: Distribusi Emosi (Donut)
   const emotionDistributionData = {
-    labels: ['Senang', 'Netral', 'Bosan', 'Bingung', 'Mengantuk'],
+    labels: emotionCategories,
     datasets: [
       {
-        data: [
-          students.filter(s => s.emotion === "Senang").length,
-          students.filter(s => s.emotion === "Netral").length,
-          students.filter(s => s.emotion === "Bosan").length,
-          students.filter(s => s.emotion === "Bingung").length,
-          students.filter(s => s.emotion === "Mengantuk").length,
-        ],
+        data: emotionCategories.map((emotion) => students.filter((student) => student.emotion === emotion).length),
         backgroundColor: ['#10b981', '#6366f1', '#f59e0b', '#f43f5e', '#8b5cf6'],
         borderWidth: 0,
         hoverOffset: 4
@@ -669,20 +547,19 @@ export default function App() {
     }
   };
 
-  // 3. Dashboard: Atensi Mingguan (Grouped Bar)
   const weeklyAttentionData = {
-    labels: ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'],
+    labels: [],
     datasets: [
       {
         label: 'Fokus',
-        data: [82, 75, 88, 70, 85, 62, 0],
+        data: [],
         backgroundColor: '#6366f1',
         borderRadius: 6,
         barThickness: 16,
       },
       {
         label: 'Tidak Fokus',
-        data: [18, 25, 12, 30, 15, 38, 0],
+        data: [],
         backgroundColor: '#f59e0b',
         borderRadius: 6,
         barThickness: 16,
@@ -719,13 +596,12 @@ export default function App() {
     }
   };
 
-  // 4. Reports: Tren Atensi Harian (Multi-line Focus vs Tidak Fokus)
   const reportsDailyTrendData = {
-    labels: ['01 Apr', '02 Apr', '03 Apr', '04 Apr', '05 Apr'],
+    labels: [],
     datasets: [
       {
         label: 'Fokus %',
-        data: [81.4, 83.2, 85.0, 78.5, 84.8],
+        data: [],
         borderColor: '#6366f1',
         backgroundColor: 'transparent',
         tension: 0.35,
@@ -734,7 +610,7 @@ export default function App() {
       },
       {
         label: 'Tidak Fokus %',
-        data: [18.6, 21.8, 15.0, 26.5, 15.2],
+        data: [],
         borderColor: '#f59e0b',
         backgroundColor: 'transparent',
         tension: 0.35,
@@ -760,13 +636,12 @@ export default function App() {
     }
   };
 
-  // 5. Reports: Perbandingan Atensi per Kelas (Bar)
   const reportsClassComparisonData = {
-    labels: ['X-A', 'X-B', 'XI-A', 'XI-B', 'XII-A', 'XII-B'],
+    labels: backendClassrooms.map((classroom) => classroom.name).filter(Boolean),
     datasets: [
       {
-        label: 'Rata-rata Atensi (%)',
-        data: [89, 78, 82, 75, 71, 68],
+        label: 'Jumlah Siswa',
+        data: backendClassrooms.map((classroom) => students.filter((student) => student.class === classroom.name).length),
         backgroundColor: '#6366f1',
         borderRadius: 8,
         barThickness: 32,
@@ -787,37 +662,36 @@ export default function App() {
     }
   };
 
-  // 6. Reports: Tren Emosi Harian (Stacked Bar)
   const reportsEmotionTrendData = {
-    labels: ['01 Apr', '02 Apr', '03 Apr', '04 Apr', '05 Apr'],
+    labels: [],
     datasets: [
       {
         label: 'Senang',
-        data: [40, 36, 45, 30, 50],
+        data: [],
         backgroundColor: '#10b981',
         barThickness: 24,
       },
       {
         label: 'Netral',
-        data: [25, 28, 22, 25, 26],
+        data: [],
         backgroundColor: '#6366f1',
         barThickness: 24,
       },
       {
         label: 'Bosan',
-        data: [20, 18, 15, 23, 14],
+        data: [],
         backgroundColor: '#f59e0b',
         barThickness: 24,
       },
       {
         label: 'Bingung',
-        data: [10, 12, 10, 14, 6],
+        data: [],
         backgroundColor: '#f43f5e',
         barThickness: 24,
       },
       {
         label: 'Mengantuk',
-        data: [5, 6, 8, 8, 4],
+        data: [],
         backgroundColor: '#8b5cf6',
         barThickness: 24,
       }
@@ -849,13 +723,26 @@ export default function App() {
     return matchesSearch && matchesClass && matchesStatus;
   });
 
+  if (!authToken) {
+    return (
+      <LoginPage
+        loginForm={loginForm}
+        setLoginForm={setLoginForm}
+        onSubmit={handleLoginSubmit}
+        error={loginError}
+        statusMessage={backendMessage}
+        isLoading={syncState === 'loading'}
+      />
+    );
+  }
+
   return (
     <div className="app-container">
       {/* Sidebar Navigation */}
       <aside className="sidebar">
         <div className="sidebar-logo">
           <Award size={26} />
-          <span className="logo-text">AttentionAI</span>
+          <span className="logo-text">EduPose</span>
         </div>
         
         <nav className="sidebar-menu">
@@ -953,7 +840,7 @@ export default function App() {
                   {connectionState === 'connecting' && 'Menghubungkan'}
                   {connectionState === 'error' && 'Gagal konek'}
                   {connectionState === 'closed' && 'Terputus'}
-                  {connectionState === 'mock' && 'Simulasi lokal'}
+                  {connectionState === 'closed' && !WEB_SOCKET_URL && 'Belum terhubung'}
                 </strong>
               </div>
             </div>
@@ -1103,29 +990,31 @@ export default function App() {
                     </div>
                   </div>
                   <div className="rankings-list">
-                    {classStats.map((item, idx) => (
-                      <div className="rank-item" key={item.name}>
-                        <span className="rank-number">#{idx + 1}</span>
-                        <span className="rank-name">{item.name}</span>
-                        <div className="rank-progress-container">
-                          <div 
-                            className="rank-progress-bar" 
-                            style={{ 
-                              width: `${item.value}%`,
-                              backgroundColor: idx === 0 ? '#10b981' : (idx < 3 ? '#6366f1' : '#f59e0b')
-                            }}
-                          />
-                        </div>
-                        <span className="rank-percentage">{item.value}%</span>
-                        <span className="rank-trend">
-                          {item.trend === 'up' ? (
+                    {classStats.length > 0 ? (
+                      classStats.map((item, idx) => (
+                        <div className="rank-item" key={item.name}>
+                          <span className="rank-number">#{idx + 1}</span>
+                          <span className="rank-name">{item.name}</span>
+                          <div className="rank-progress-container">
+                            <div 
+                              className="rank-progress-bar" 
+                              style={{ 
+                                width: `${Math.min(100, item.value * 10)}%`,
+                                backgroundColor: idx === 0 ? '#10b981' : (idx < 3 ? '#6366f1' : '#f59e0b')
+                              }}
+                            />
+                          </div>
+                          <span className="rank-percentage">{item.value}</span>
+                          <span className="rank-trend">
                             <TrendingUp size={14} color="#10b981" />
-                          ) : (
-                            <TrendingDown size={14} color="#ef4444" />
-                          )}
-                        </span>
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ color: '#64748b', fontSize: '0.92rem' }}>
+                        Belum ada data kelas dari backend.
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
 
@@ -1138,18 +1027,24 @@ export default function App() {
                     </div>
                   </div>
                   <div className="warnings-list">
-                    {warnings.slice(0, 3).map(w => (
-                      <div className="warning-item" key={w.id}>
-                        <div className="warning-content">
-                          <div className="warning-student">{w.name}</div>
-                          <div className="warning-desc">{w.desc}</div>
+                    {warnings.slice(0, 3).length > 0 ? (
+                      warnings.slice(0, 3).map(w => (
+                        <div className="warning-item" key={w.id}>
+                          <div className="warning-content">
+                            <div className="warning-student">{w.name}</div>
+                            <div className="warning-desc">{w.desc}</div>
+                          </div>
+                          <div className="warning-time">
+                            <Clock size={12} />
+                            {w.time}
+                          </div>
                         </div>
-                        <div className="warning-time">
-                          <Clock size={12} />
-                          {w.time}
-                        </div>
+                      ))
+                    ) : (
+                      <div style={{ color: '#64748b', fontSize: '0.92rem' }}>
+                        Belum ada peringatan dari backend.
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
 
@@ -1198,14 +1093,20 @@ export default function App() {
                 </div>
 
                 <div className="result-list">
-                  {liveLog.map((result, idx) => (
-                    <div className="result-item" key={idx}>
-                      <span className="result-student-name">{result.name}</span>
-                      <span className={`badge ${result.status === 'Attentive' ? 'badge-aktif' : 'badge-tidak-aktif'}`}>
-                        {result.status}
-                      </span>
+                  {liveLog.length > 0 ? (
+                    liveLog.map((result, idx) => (
+                      <div className="result-item" key={idx}>
+                        <span className="result-student-name">{result.name}</span>
+                        <span className={`badge ${result.status === 'Attentive' ? 'badge-aktif' : 'badge-tidak-aktif'}`}>
+                          {result.status}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ color: '#64748b', fontSize: '0.92rem' }}>
+                      Belum ada data live dari backend.
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
 
@@ -1347,8 +1248,8 @@ export default function App() {
                 <div className="metric-details">
                   <div className="metric-label">Rata-rata Atensi</div>
                   <div className="metric-value-container">
-                    <div className="metric-value">81.4%</div>
-                    <div className="metric-change up">+3.2%</div>
+                    <div className="metric-value">{averageAttention ? `${averageAttention}%` : '—'}</div>
+                    <div className="metric-change up">{averageAttention ? 'Data backend' : 'Belum ada data'}</div>
                   </div>
                 </div>
               </div>
@@ -1360,8 +1261,8 @@ export default function App() {
                 <div className="metric-details">
                   <div className="metric-label">Siswa Paling Fokus</div>
                   <div className="metric-value-container">
-                    <div className="metric-value" style={{ fontSize: '1.2rem', padding: '6px 0' }}>Eka Putri</div>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#10b981' }}>(95%)</span>
+                    <div className="metric-value" style={{ fontSize: '1.2rem', padding: '6px 0' }}>{topStudent ? topStudent.name : 'Belum ada data'}</div>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#10b981' }}>{topStudent ? `(${Number(topStudent.attention ?? 0)}%)` : '(0%)'}</span>
                   </div>
                 </div>
               </div>
@@ -1373,8 +1274,8 @@ export default function App() {
                 <div className="metric-details">
                   <div className="metric-label">Kelas Terbaik</div>
                   <div className="metric-value-container">
-                    <div className="metric-value" style={{ fontSize: '1.4rem', padding: '3px 0' }}>X-A</div>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#10b981' }}>(89%)</span>
+                    <div className="metric-value" style={{ fontSize: '1.4rem', padding: '3px 0' }}>{bestClassroom ? bestClassroom.name : 'Belum ada data'}</div>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#10b981' }}>{bestClassroom ? `(${bestClassroom.studentCount} siswa)` : '(0 siswa)'}</span>
                   </div>
                 </div>
               </div>
@@ -1386,8 +1287,8 @@ export default function App() {
                 <div className="metric-details">
                   <div className="metric-label">Total Peringatan</div>
                   <div className="metric-value-container">
-                    <div className="metric-value">12</div>
-                    <div className="metric-change down">-4</div>
+                    <div className="metric-value">{alertCount}</div>
+                    <div className="metric-change down">Data backend</div>
                   </div>
                 </div>
               </div>
@@ -1542,57 +1443,20 @@ export default function App() {
                     {backendMessage}
                   </p>
 
-                  {!authToken ? (
-                    <form onSubmit={handleLoginSubmit}>
-                      <div className="profile-fields-grid">
-                        <div className="profile-field-group">
-                          <label>Email Login</label>
-                          <input
-                            type="email"
-                            placeholder="guru@sekolah.id"
-                            value={loginForm.email}
-                            onChange={(event) => setLoginForm(previousForm => ({ ...previousForm, email: event.target.value }))}
-                          />
-                        </div>
-                        <div className="profile-field-group">
-                          <label>Password</label>
-                          <input
-                            type="password"
-                            placeholder="Masukkan password"
-                            value={loginForm.password}
-                            onChange={(event) => setLoginForm(previousForm => ({ ...previousForm, password: event.target.value }))}
-                          />
-                        </div>
-                      </div>
-
-                      {loginError && (
-                        <div style={{ color: '#ef4444', marginTop: '12px', fontWeight: 600 }}>
-                          {loginError}
-                        </div>
-                      )}
-
-                      <div style={{ display: 'flex', gap: '12px', marginTop: '18px', flexWrap: 'wrap' }}>
-                        <button type="submit" className="save-btn" disabled={syncState === 'loading'}>
-                          {syncState === 'loading' ? 'Login...' : 'Login ke Backend'}
-                        </button>
-                      </div>
-                    </form>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                      <div style={{ display: 'grid', gap: '8px' }}>
-                        <div style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 600 }}>User aktif</div>
-                        <div style={{ fontSize: '1rem', fontWeight: 700, color: '#1e1b4b' }}>{profileData.name}</div>
-                        <div style={{ fontSize: '0.92rem', color: '#64748b' }}>{profileData.email || 'Email tidak tersedia'}</div>
-                        <div style={{ fontSize: '0.92rem', color: '#64748b' }}>{backendTeachers.length} guru, {backendClassrooms.length} kelas tersinkron</div>
-                      </div>
-
-                      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                        <button type="button" className="save-btn" onClick={handleLogout} style={{ background: '#ef4444' }}>
-                          Logout
-                        </button>
-                      </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div style={{ display: 'grid', gap: '8px' }}>
+                      <div style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 600 }}>User aktif</div>
+                      <div style={{ fontSize: '1rem', fontWeight: 700, color: '#1e1b4b' }}>{profileData.name}</div>
+                      <div style={{ fontSize: '0.92rem', color: '#64748b' }}>{profileData.email || 'Email tidak tersedia'}</div>
+                      <div style={{ fontSize: '0.92rem', color: '#64748b' }}>{backendTeachers.length} guru, {backendClassrooms.length} kelas tersinkron</div>
                     </div>
-                  )}
+
+                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                      <button type="button" className="save-btn" onClick={handleLogout} style={{ background: '#ef4444' }}>
+                        Logout
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 
                 {/* School Information */}

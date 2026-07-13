@@ -4,6 +4,10 @@ export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL?.trim() || DEFAUL
 
 export const AUTH_STORAGE_KEY = 'attentionai.auth.session';
 
+let activeAuthToken = '';
+
+const isPlainObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+
 const toQueryString = (params = {}) => {
   const searchParams = new URLSearchParams();
 
@@ -23,6 +27,12 @@ export const buildApiUrl = (path, params) => {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   return `${API_BASE_URL}${normalizedPath}${params ? toQueryString(params) : ''}`;
 };
+
+export const setApiAuthToken = (token = '') => {
+  activeAuthToken = typeof token === 'string' ? token.trim() : '';
+};
+
+export const getApiAuthToken = () => activeAuthToken;
 
 export const readStoredSession = () => {
   if (typeof window === 'undefined') {
@@ -51,6 +61,7 @@ export const persistSession = (session) => {
   }
 
   window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+  setApiAuthToken(session?.token ?? '');
 };
 
 export const clearStoredSession = () => {
@@ -59,6 +70,7 @@ export const clearStoredSession = () => {
   }
 
   window.localStorage.removeItem(AUTH_STORAGE_KEY);
+  setApiAuthToken('');
 };
 
 const parseJson = async (response) => {
@@ -75,20 +87,93 @@ const parseJson = async (response) => {
   }
 };
 
-export const apiRequest = async ({ path, method = 'GET', token, body, params, headers = {} }) => {
-  const response = await fetch(buildApiUrl(path, params), {
-    method,
-    headers: {
-      ...headers,
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+export const normalizeBaseResponse = (payload) => {
+  if (!isPlainObject(payload)) {
+    return {
+      message: '',
+      data: payload ?? null,
+      raw: payload,
+    };
+  }
+
+  return {
+    message: typeof payload.message === 'string' ? payload.message : '',
+    data: Object.prototype.hasOwnProperty.call(payload, 'data') ? payload.data ?? null : null,
+    raw: payload,
+  };
+};
+
+export const normalizePaginatedResponse = (payload) => {
+  const baseResponse = normalizeBaseResponse(payload);
+  const responseData = baseResponse.data;
+
+  const items = Array.isArray(responseData?.items)
+    ? responseData.items
+    : Array.isArray(responseData)
+      ? responseData
+      : Array.isArray(baseResponse.raw?.items)
+        ? baseResponse.raw.items
+        : [];
+
+  const metaSource = isPlainObject(responseData?.meta)
+    ? responseData.meta
+    : isPlainObject(baseResponse.raw?.meta)
+      ? baseResponse.raw.meta
+      : {};
+
+  const total = Number(metaSource.total ?? items.length ?? 0);
+  const page = Number(metaSource.page ?? 1);
+  const size = Number(metaSource.size ?? items.length ?? 0);
+
+  return {
+    ...baseResponse,
+    items,
+    meta: {
+      total: Number.isFinite(total) ? total : items.length,
+      page: Number.isFinite(page) ? page : 1,
+      size: Number.isFinite(size) ? size : items.length,
     },
-    body: body instanceof FormData ? body : body !== undefined ? JSON.stringify(body) : undefined,
+  };
+};
+
+const applyRequestInterceptors = (config) => {
+  const headers = { ...(config.headers ?? {}) };
+  const resolvedToken = typeof config.token === 'string' && config.token.trim() ? config.token.trim() : activeAuthToken;
+
+  if (!headers.Authorization && !config.skipAuth && resolvedToken) {
+    headers.Authorization = `Bearer ${resolvedToken}`;
+  }
+
+  if (config.body !== undefined && !(config.body instanceof FormData) && !headers['Content-Type'] && !headers['content-type']) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  if (!headers.Accept && !headers.accept) {
+    headers.Accept = 'application/json';
+  }
+
+  return {
+    ...config,
+    headers,
+  };
+};
+
+export const apiRequest = async (config) => {
+  const preparedConfig = applyRequestInterceptors(config);
+  const response = await fetch(buildApiUrl(preparedConfig.path, preparedConfig.params), {
+    method: preparedConfig.method ?? 'GET',
+    headers: preparedConfig.headers,
+    body: preparedConfig.body instanceof FormData
+      ? preparedConfig.body
+      : preparedConfig.body !== undefined
+        ? JSON.stringify(preparedConfig.body)
+        : undefined,
   });
 
   const payload = await parseJson(response);
 
   if (!response.ok) {
-    const errorMessage = payload?.message || payload?.detail || `Request failed with status ${response.status}`;
+    const errorMessage = normalizeBaseResponse(payload).message || payload?.detail || `Request failed with status ${response.status}`;
     throw new Error(errorMessage);
   }
 
@@ -100,10 +185,8 @@ export const loginRequest = (email, password) => {
     path: '/auth/login',
     method: 'POST',
     body: { email, password },
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
+    skipAuth: true,
+  }).then((payload) => normalizeBaseResponse(payload));
 };
 
 export const checkBackendHealth = async () => {
@@ -122,68 +205,35 @@ export const listCollection = (resourcePath, token, params = {}) => {
     method: 'GET',
     token,
     params,
-  });
+  }).then((payload) => normalizePaginatedResponse(payload));
 };
 
-const createFallbackMetrics = (index, fallbackStudents) => {
-  const template = fallbackStudents[index % fallbackStudents.length] ?? fallbackStudents[0] ?? {};
+export const getPaginatedCollection = (response) => normalizePaginatedResponse(response);
 
-  return {
-    attention: typeof template.attention === 'number' ? template.attention : 75,
-    emotion: template.emotion || 'Netral',
-    status: template.status || 'Aktif',
-    trend: template.trend || 'up',
-  };
-};
+export const getBaseResponseData = (response) => normalizeBaseResponse(response).data;
 
-export const mergeStudentsFromBackend = (remoteStudents = [], fallbackStudents = []) => {
+export const getBaseResponseMessage = (response) => normalizeBaseResponse(response).message;
+
+export const mergeStudentsFromBackend = (remoteStudents = []) => {
   if (!Array.isArray(remoteStudents) || remoteStudents.length === 0) {
-    return fallbackStudents;
+    return [];
   }
 
-  return remoteStudents.map((student, index) => {
-    const metrics = createFallbackMetrics(index, fallbackStudents);
-
-    return {
-      id: student.id ?? index + 1,
-      name: student.name || `Student ${index + 1}`,
-      class: student.classroom_name || 'Belum ditentukan',
-      attention: metrics.attention,
-      emotion: metrics.emotion,
-      status: metrics.status,
-      trend: metrics.trend,
-      nis: student.nis || '',
-      classroom_id: student.classroom_id || '',
-      photo_filepath: student.photo_filepath || null,
-    };
-  });
+  return remoteStudents.map((student, index) => ({
+    id: student.id ?? index + 1,
+    name: student.name || `Student ${index + 1}`,
+    class: student.classroom_name || 'Belum ditentukan',
+    attention: Number(student.attention ?? 0),
+    emotion: student.emotion || 'Belum tersedia',
+    status: student.status || 'Belum tersedia',
+    trend: student.trend || 'flat',
+    nis: student.nis || '',
+    classroom_id: student.classroom_id || '',
+    photo_filepath: student.photo_filepath || null,
+  }));
 };
 
-export const mergeBoxesFromStudents = (students = [], fallbackBoxes = []) => {
-  if (!Array.isArray(students) || students.length === 0) {
-    return fallbackBoxes;
-  }
-
-  return students.map((student, index) => {
-    const seed = fallbackBoxes[index % fallbackBoxes.length] ?? {
-      x: 10 + (index % 4) * 18,
-      y: 10 + Math.floor(index / 4) * 28,
-      w: 10,
-      h: 16,
-      focus: true,
-      emotion: 'Netral',
-    };
-
-    const focus = typeof student.attention === 'number' ? student.attention >= 70 : seed.focus;
-
-    return {
-      ...seed,
-      name: student.name || seed.name || `Student ${index + 1}`,
-      emotion: student.emotion || seed.emotion || 'Netral',
-      focus,
-    };
-  });
-};
+export const mergeBoxesFromStudents = () => [];
 
 export const buildTeacherProfile = (user, previousProfile) => {
   if (!user) {
