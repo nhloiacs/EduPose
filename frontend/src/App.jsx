@@ -116,6 +116,7 @@ export default function App() {
   const [backendMessage, setBackendMessage] = useState(storedSession.token ? 'Mencoba sinkronisasi data backend...' : 'Belum login ke backend');
   const [backendHealthState, setBackendHealthState] = useState('checking');
   const [backendHealthMessage, setBackendHealthMessage] = useState('Memeriksa backend...');
+  const [lastSyncedAt, setLastSyncedAt] = useState(null);
   const [loginError, setLoginError] = useState('');
   const [loginForm, setLoginForm] = useState({
     email: '',
@@ -331,15 +332,25 @@ export default function App() {
   useEffect(() => {
     let isActive = true;
 
-    const loadBackendData = async () => {
+    const loadBackendData = async (showLoadingState = true) => {
       if (!authToken) {
+        if (!isActive) {
+          return;
+        }
+
         setSyncState('idle');
         setBackendMessage('Belum login ke backend');
         return;
       }
 
-      setSyncState('loading');
-      setBackendMessage('Mengambil siswa, kelas, dan guru dari backend...');
+      if (showLoadingState) {
+        setSyncState('loading');
+        setBackendMessage(
+          students.length > 0
+            ? 'Menyegarkan data backend...'
+            : 'Mengambil siswa, kelas, dan guru dari backend...'
+        );
+      }
 
       try {
         const [studentsResponse, classroomsResponse, teachersResponse] = await Promise.all([
@@ -367,6 +378,7 @@ export default function App() {
         })));
         setBackendClassrooms(remoteClassrooms);
         setBackendTeachers(remoteTeachers);
+        setLastSyncedAt(new Date());
         setSyncState('connected');
         setBackendMessage(
           `Sinkron ${studentsResponse.meta.total} siswa, ${classroomsResponse.meta.total} kelas, dan ${teachersResponse.meta.total} guru.`
@@ -381,10 +393,15 @@ export default function App() {
       }
     };
 
-    loadBackendData();
+    loadBackendData(true);
+
+    const refreshIntervalId = setInterval(() => {
+      loadBackendData(false);
+    }, 30000);
 
     return () => {
       isActive = false;
+      clearInterval(refreshIntervalId);
     };
   }, [authToken]);
 
@@ -714,6 +731,15 @@ export default function App() {
     }
   };
 
+  const hasStudents = students.length > 0;
+  const hasClassrooms = backendClassrooms.length > 0;
+  const hasWarnings = warnings.length > 0;
+  const hasEmotionChartData = emotionDistributionData.datasets[0].data.some((value) => value > 0);
+  const hasClassChartData = reportsClassComparisonData.labels.length > 0;
+  const isInitialLoading = syncState === 'loading' && students.length === 0;
+  const isRefreshing = syncState === 'loading' && students.length > 0;
+  const dashboardErrorMessage = syncState === 'error' ? backendMessage : '';
+
   // Student list search/filter logic
   const filteredStudents = students.filter(student => {
     const matchesSearch = student.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -847,6 +873,51 @@ export default function App() {
           </div>
         </header>
 
+        {(isInitialLoading || isRefreshing || dashboardErrorMessage || lastSyncedAt) && (
+          <section
+            style={{
+              margin: '0 0 20px',
+              padding: '14px 18px',
+              borderRadius: '16px',
+              background: dashboardErrorMessage
+                ? 'rgba(239, 68, 68, 0.08)'
+                : isInitialLoading
+                  ? 'rgba(99, 102, 241, 0.08)'
+                  : 'rgba(16, 185, 129, 0.08)',
+              border: `1px solid ${dashboardErrorMessage ? 'rgba(239, 68, 68, 0.18)' : 'rgba(99, 102, 241, 0.12)'}`,
+              display: 'flex',
+              justifyContent: 'space-between',
+              gap: '16px',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+            }}
+          >
+            <div>
+              <div style={{ fontWeight: 700, color: '#1e1b4b', marginBottom: '4px' }}>
+                {dashboardErrorMessage
+                  ? 'Sinkronisasi gagal'
+                  : isInitialLoading
+                    ? 'Memuat data dashboard'
+                    : isRefreshing
+                      ? 'Menyegarkan data dashboard'
+                      : 'Data dashboard siap'}
+              </div>
+              <div style={{ color: '#64748b', fontSize: '0.92rem' }}>
+                {dashboardErrorMessage
+                  ? dashboardErrorMessage
+                  : isInitialLoading
+                    ? 'Sedang mengambil data backend untuk statistik, chart, dan tabel.'
+                    : isRefreshing
+                      ? 'Refresh otomatis berjalan tanpa mengganggu data yang sedang tampil.'
+                      : `Terakhir sinkron ${lastSyncedAt?.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`}
+              </div>
+            </div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#64748b' }}>
+              Auto refresh 30 detik
+            </div>
+          </section>
+        )}
+
         {/* Global Summary Cards */}
         {activeTab !== 'reports' && activeTab !== 'profile' && (
           <section className="metrics-grid">
@@ -930,8 +1001,14 @@ export default function App() {
                   </div>
                   <p className="card-subtitle" style={{ marginTop: '6px' }}>{backendHealthMessage}</p>
                 </div>
-                <div style={{ height: '280px', position: 'relative' }}>
-                  <Line data={dailyAttentionData} options={dailyAttentionOptions} />
+                <div style={{ height: '280px', position: 'relative', display: 'grid', placeItems: 'center' }}>
+                  {isInitialLoading ? (
+                    <div style={{ color: '#64748b', fontSize: '0.92rem' }}>Memuat grafik dari backend...</div>
+                  ) : (
+                    <div style={{ color: '#64748b', fontSize: '0.92rem', textAlign: 'center' }}>
+                      Belum ada data harian dari backend untuk grafik ini.
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -943,22 +1020,30 @@ export default function App() {
                     <p className="card-subtitle">Persentase ekspresi siswa terdeteksi</p>
                   </div>
                 </div>
-                <div style={{ height: '180px', position: 'relative', flex: 1 }}>
-                  <Doughnut data={emotionDistributionData} options={emotionDonutOptions} />
+                <div style={{ height: '180px', position: 'relative', flex: 1, display: 'grid', placeItems: 'center' }}>
+                  {hasEmotionChartData ? (
+                    <Doughnut data={emotionDistributionData} options={emotionDonutOptions} />
+                  ) : (
+                    <div style={{ color: '#64748b', fontSize: '0.92rem', textAlign: 'center' }}>
+                      Belum ada data emosi dari backend.
+                    </div>
+                  )}
                 </div>
                 
                 {/* Custom Styled Legends */}
-                <div className="custom-legend">
-                  {emotionDistributionData.labels.map((label, idx) => (
-                    <div key={label} className="legend-item">
-                      <span 
-                        className="legend-color" 
-                        style={{ backgroundColor: emotionDistributionData.datasets[0].backgroundColor[idx] }}
-                      />
-                      <span>{label}</span>
-                    </div>
-                  ))}
-                </div>
+                {hasEmotionChartData ? (
+                  <div className="custom-legend">
+                    {emotionDistributionData.labels.map((label, idx) => (
+                      <div key={label} className="legend-item">
+                        <span 
+                          className="legend-color" 
+                          style={{ backgroundColor: emotionDistributionData.datasets[0].backgroundColor[idx] }}
+                        />
+                        <span>{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
 
             </div>
@@ -973,8 +1058,10 @@ export default function App() {
                     <p className="card-subtitle">Perbandingan status fokus harian</p>
                   </div>
                 </div>
-                <div style={{ height: '280px', position: 'relative' }}>
-                  <Bar data={weeklyAttentionData} options={weeklyAttentionOptions} />
+                <div style={{ height: '280px', position: 'relative', display: 'grid', placeItems: 'center' }}>
+                  <div style={{ color: '#64748b', fontSize: '0.92rem', textAlign: 'center' }}>
+                    Belum ada data mingguan dari backend.
+                  </div>
                 </div>
               </div>
 
@@ -1162,7 +1249,13 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredStudents.length > 0 ? (
+                  {isInitialLoading ? (
+                    <tr>
+                      <td colSpan="7" style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
+                        Memuat data siswa dari backend...
+                      </td>
+                    </tr>
+                  ) : filteredStudents.length > 0 ? (
                     filteredStudents.map((student, idx) => {
                       // Color based on attention percentage
                       let attColor = 'success';
@@ -1210,7 +1303,9 @@ export default function App() {
                   ) : (
                     <tr>
                       <td colSpan="7" style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
-                        Tidak ada siswa yang cocok dengan filter pencarian.
+                        {searchQuery || classFilter !== 'All' || statusFilter !== 'All'
+                          ? 'Tidak ada siswa yang cocok dengan filter pencarian.'
+                          : 'Belum ada data siswa dari backend.'}
                       </td>
                     </tr>
                   )}
@@ -1304,8 +1399,10 @@ export default function App() {
                     <p className="card-subtitle">Perbandingan persentase fokus vs tidak fokus historis</p>
                   </div>
                 </div>
-                <div style={{ height: '280px', position: 'relative' }}>
-                  <Line data={reportsDailyTrendData} options={reportsDailyTrendOptions} />
+                <div style={{ height: '280px', position: 'relative', display: 'grid', placeItems: 'center' }}>
+                  <div style={{ color: '#64748b', fontSize: '0.92rem', textAlign: 'center' }}>
+                    Belum ada data tren harian dari backend.
+                  </div>
                 </div>
               </div>
 
@@ -1317,21 +1414,29 @@ export default function App() {
                     <p className="card-subtitle">Akumulasi emosi sepanjang periode</p>
                   </div>
                 </div>
-                <div style={{ height: '180px', position: 'relative', flex: 1 }}>
-                  <Doughnut data={emotionDistributionData} options={emotionDonutOptions} />
+                <div style={{ height: '180px', position: 'relative', flex: 1, display: 'grid', placeItems: 'center' }}>
+                  {hasEmotionChartData ? (
+                    <Doughnut data={emotionDistributionData} options={emotionDonutOptions} />
+                  ) : (
+                    <div style={{ color: '#64748b', fontSize: '0.92rem', textAlign: 'center' }}>
+                      Belum ada data emosi dari backend.
+                    </div>
+                  )}
                 </div>
                 
-                <div className="custom-legend">
-                  {emotionDistributionData.labels.map((label, idx) => (
-                    <div key={label} className="legend-item">
-                      <span 
-                        className="legend-color" 
-                        style={{ backgroundColor: emotionDistributionData.datasets[0].backgroundColor[idx] }}
-                      />
-                      <span>{label}</span>
-                    </div>
-                  ))}
-                </div>
+                {hasEmotionChartData ? (
+                  <div className="custom-legend">
+                    {emotionDistributionData.labels.map((label, idx) => (
+                      <div key={label} className="legend-item">
+                        <span 
+                          className="legend-color" 
+                          style={{ backgroundColor: emotionDistributionData.datasets[0].backgroundColor[idx] }}
+                        />
+                        <span>{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -1344,8 +1449,14 @@ export default function App() {
                     <p className="card-subtitle">Rata-rata tingkat fokus siswa antar kelas</p>
                   </div>
                 </div>
-                <div style={{ height: '280px', position: 'relative' }}>
-                  <Bar data={reportsClassComparisonData} options={reportsClassComparisonOptions} />
+                <div style={{ height: '280px', position: 'relative', display: 'grid', placeItems: 'center' }}>
+                  {hasClassChartData ? (
+                    <Bar data={reportsClassComparisonData} options={reportsClassComparisonOptions} />
+                  ) : (
+                    <div style={{ color: '#64748b', fontSize: '0.92rem', textAlign: 'center' }}>
+                      Belum ada data kelas dari backend.
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1357,8 +1468,10 @@ export default function App() {
                     <p className="card-subtitle">Akumulasi sebaran emosi terdeteksi per hari</p>
                   </div>
                 </div>
-                <div style={{ height: '280px', position: 'relative' }}>
-                  <Bar data={reportsEmotionTrendData} options={reportsEmotionTrendOptions} />
+                <div style={{ height: '280px', position: 'relative', display: 'grid', placeItems: 'center' }}>
+                  <div style={{ color: '#64748b', fontSize: '0.92rem', textAlign: 'center' }}>
+                    Belum ada data emosi historis dari backend.
+                  </div>
                 </div>
               </div>
             </div>
