@@ -1,20 +1,20 @@
 import pytest
+import io
 from fastapi.testclient import TestClient
 from app.main import app
 from app.database.database import get_db
 from app.models.teacher import Teacher
 from app.core.security import hash_password
+from app.modules.teacher.service import TeacherService
+from app.modules.teacher.schema import TeacherCreate
 
 @pytest.fixture
 def client(db_session):
     def _get_test_db():
         yield db_session
-    
     app.dependency_overrides[get_db] = _get_test_db
-    
     with TestClient(app) as c:
         yield c
-    
     app.dependency_overrides.clear()
 
 @pytest.fixture
@@ -25,7 +25,8 @@ def test_teacher(db_session):
         email="test@sekolah.com",
         password_hash=hash_password(password),
         photo_filepath="../static/images/teachers/profile.png",
-        role="teacher"
+        role="teacher",
+        nip="12345678"
     )
     db_session.add(teacher)
     db_session.commit()
@@ -33,10 +34,16 @@ def test_teacher(db_session):
     db_session.delete(teacher)
     db_session.commit()
 
+@pytest.fixture
+def auth_headers(client, test_teacher):
+    payload = {"email": "test@sekolah.com", "password": "password123"}
+    login_res = client.post("/auth/login", json=payload)
+    token = login_res.json()["data"]["token"]
+    return {"Authorization": f"Bearer {token}"}
+
 def test_login_success(client, test_teacher):
     payload = {"email": "test@sekolah.com", "password": "password123"}
     response = client.post("/auth/login", json=payload)
-    
     assert response.status_code == 200
     json_data = response.json()
     assert "data" in json_data
@@ -61,3 +68,14 @@ def test_login_invalid_schema(client):
     payload = {"email": "bukan-email", "password": "password123"}
     response = client.post("/auth/login", json=payload)
     assert response.status_code == 422
+
+def test_get_me_api(client, test_teacher):
+    payload = {"email": "test@sekolah.com", "password": "password123"}
+    login_response = client.post("/auth/login", json=payload)
+    token = login_response.json()["data"]["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    response = client.get("/auth/profile", headers=headers)
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["name"] == "Test Teacher"
+    assert data["id"] == str(test_teacher.id)
