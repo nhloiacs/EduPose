@@ -1,5 +1,6 @@
 import pytest
 import uuid
+from app.core.exceptions import NotFoundException
 from app.modules.classroom_session.service import ClassroomSessionService
 from app.modules.classroom_session.schema import ClassroomSessionUpdate
 from app.models.classroom import Classroom
@@ -7,7 +8,30 @@ from app.models.classroom_session import ClassroomSession
 from app.models.classroom_metric import ClassroomMetric
 from app.models.student import Student
 from app.models.student_metric import StudentMetric
-from app.core.exceptions import NotFoundException
+from app.models.teacher import Teacher
+
+from fastapi import HTTPException
+
+def setup_teacher(db, name="Guru Test"):
+    uid = uuid.uuid4().hex[:6]
+    teacher = Teacher(
+        name=name, 
+        nip=f"NIP-{uid}", 
+        email=f"{uid}@sekolah.com", 
+        password_hash="hashed", 
+        role="teacher"
+    )
+    db.add(teacher)
+    db.commit()
+    db.refresh(teacher)
+    return teacher
+
+def setup_session(db, classroom_id, subject="Biologi", teacher_id=None):
+    session = ClassroomSession(classroom_id=classroom_id, subject=subject, teacher_id=teacher_id)
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+    return session
 
 def setup_classroom(db):
     classroom = Classroom(name=f"Room-{uuid.uuid4().hex[:6]}")
@@ -16,8 +40,8 @@ def setup_classroom(db):
     db.refresh(classroom)
     return classroom
 
-def setup_session(db, classroom_id, subject="Biologi"):
-    session = ClassroomSession(classroom_id=classroom_id, subject=subject)
+def setup_session(db, classroom_id, subject="Biologi", teacher_id=None):
+    session = ClassroomSession(classroom_id=classroom_id, subject=subject, teacher_id=teacher_id)
     db.add(session)
     db.commit()
     db.refresh(session)
@@ -132,3 +156,29 @@ def test_not_found_exceptions(db_session):
         ClassroomSessionService.delete_session(db_session, fake_id)
     with pytest.raises(NotFoundException):
         ClassroomSessionService.get_session_students(db_session, fake_id, 1, 10)
+
+def test_get_all_sessions_teacher_filter(db_session):
+    classroom = setup_classroom(db_session)
+    teacher_a = setup_teacher(db_session, name="Guru A")
+    teacher_b = setup_teacher(db_session, name="Guru B")
+    setup_session(db_session, classroom.id, subject="Matematika Guru A", teacher_id=teacher_a.id)
+    setup_session(db_session, classroom.id, subject="Fisika Guru B", teacher_id=teacher_b.id)
+    items, total = ClassroomSessionService.get_all_sessions(db_session, page=1, size=10, teacher_id=str(teacher_a.id))
+    assert total == 1
+    assert items[0].subject == "Matematika Guru A"
+
+def test_teacher_access_forbidden(db_session):
+    classroom = setup_classroom(db_session)
+    teacher_asli = setup_teacher(db_session, name="Guru Asli")
+    teacher_penyusup = setup_teacher(db_session, name="Guru Penyusup")
+    session = setup_session(db_session, classroom.id, teacher_id=teacher_asli.id)
+    with pytest.raises(HTTPException) as exc_info:
+        ClassroomSessionService.get_session_detail(db_session, session.id, teacher_id=str(teacher_penyusup.id))
+    assert exc_info.value.status_code == 403
+    assert "Sesi ini bukan milik Anda" in exc_info.value.detail
+    with pytest.raises(HTTPException):
+        ClassroomSessionService.update_session(
+            db_session, session.id, 
+            ClassroomSessionUpdate(subject="Hacked"), 
+            teacher_id=str(teacher_penyusup.id)
+        )

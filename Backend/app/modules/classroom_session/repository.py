@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 from sqlalchemy import func, or_, cast, String
 from app.models.classroom_session import ClassroomSession
 from app.models.classroom import Classroom
@@ -10,12 +10,11 @@ from app.models.student_metric import StudentMetric
 
 class ClassroomSessionRepository:
     @staticmethod
-    def get_all(db: Session, skip: int = 0, limit: int = 10, search: str = None):
+    def get_all(db: Session, skip: int = 0, limit: int = 10, search: str = None, teacher_id: uuid.UUID = None):
         query = db.query(
             ClassroomSession,
             Classroom.name.label("classroom_name"),
             Teacher.name.label("teacher_name"),
-            # --- Tambahan Agregasi Metrik ---
             func.coalesce(func.avg(ClassroomMetric.focus_percentage), 0).label("avg_focus"),
             func.coalesce(func.avg(ClassroomMetric.active_students), 0).label("avg_active"),
             func.coalesce(func.sum(ClassroomMetric.using_phone_count), 0).label("sum_phone"),
@@ -25,9 +24,10 @@ class ClassroomSessionRepository:
         ).outerjoin(
             Teacher, ClassroomSession.teacher_id == Teacher.id
         ).outerjoin(
-            ClassroomMetric, ClassroomSession.id == ClassroomMetric.session_id # <--- Tambahan Join
+            ClassroomMetric, ClassroomSession.id == ClassroomMetric.session_id
         ).filter(ClassroomSession.deleted_at.is_(None))
-
+        if teacher_id:
+            query = query.filter(ClassroomSession.teacher_id == teacher_id)
         if search:
             search_term = f"%{search}%"
             query = query.filter(
@@ -45,7 +45,7 @@ class ClassroomSessionRepository:
 
     @staticmethod
     def get_subject_only(db: Session, session_id: uuid.UUID):
-        return db.query(ClassroomSession.id, ClassroomSession.subject).filter(
+        return db.query(ClassroomSession).filter(
             ClassroomSession.id == session_id,
             ClassroomSession.deleted_at.is_(None)
         ).first()
@@ -79,20 +79,17 @@ class ClassroomSessionRepository:
             ClassroomSession.id == session_id,
             ClassroomSession.deleted_at.is_(None)
         ).first()
-        
         if session:
             session.subject = new_subject
             db.commit()
             db.refresh(session)
         return session
-
     @staticmethod
     def soft_delete(db: Session, session_id: uuid.UUID):
         session = db.query(ClassroomSession).filter(
             ClassroomSession.id == session_id,
             ClassroomSession.deleted_at.is_(None)
         ).first()
-        
         if session:
             session.deleted_at = func.now()
             db.commit()

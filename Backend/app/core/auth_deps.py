@@ -16,3 +16,8 @@ def require_principal(user: dict = Depends(get_current_user)):
     if user.get("role") != "principal":
         raise HTTPException(status_code=403, detail="Not authorized to perform this action")
     return user
+
+def require_principal_or_teacher(user: dict = Depends(get_current_user)):
+    if user.get("role") not in ["principal", "teacher"]:
+        raise HTTPException(status_code=403, detail="Not authorized to perform this action")
+    return user
