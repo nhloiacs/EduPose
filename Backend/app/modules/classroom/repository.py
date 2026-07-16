@@ -9,7 +9,7 @@ from app.models.classroom_metric import ClassroomMetric
 from app.models.teacher import Teacher
 from app.models.student import Student
 
-DEFAULT_CAMERA_ID = uuid.UUID("11111111-1111-1111-1111-111111111111")
+DEFAULT_CAMERA_ID = None 
 
 class ClassroomRepository:
     @staticmethod
@@ -39,7 +39,7 @@ class ClassroomRepository:
     def create(db: Session, data: ClassroomCreate):
         classroom = Classroom(
             name=data.name,
-            camera_id=DEFAULT_CAMERA_ID 
+            camera_id=data.camera_id if hasattr(data, 'camera_id') else None
         )
         db.add(classroom)
         db.commit()
@@ -76,7 +76,7 @@ class ClassroomRepository:
     def reactivate_classroom(db: Session, classroom: Classroom, data: ClassroomCreate):
         classroom.deleted_at = None
         classroom.name = data.name 
-        classroom.camera_id = DEFAULT_CAMERA_ID
+        classroom.camera_id = data.camera_id if hasattr(data, 'camera_id') else None
         db.commit()
         db.refresh(classroom)
         return classroom

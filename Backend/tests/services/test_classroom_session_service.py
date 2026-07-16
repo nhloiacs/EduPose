@@ -33,8 +33,10 @@ def setup_session(db, classroom_id, subject="Biologi", teacher_id=None):
     db.refresh(session)
     return session
 
-def setup_classroom(db):
-    classroom = Classroom(name=f"Room-{uuid.uuid4().hex[:6]}")
+def setup_classroom(db, name=None):
+    if not name:
+        name = f"Room-{uuid.uuid4().hex[:6]}"
+    classroom = Classroom(name=name, camera_id=None)
     db.add(classroom)
     db.commit()
     db.refresh(classroom)
