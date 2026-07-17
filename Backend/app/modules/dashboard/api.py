@@ -1,7 +1,7 @@
 import uuid
 from typing import Union, List
 from datetime import date
-from fastapi import APIRouter, Depends, Query, Path
+from fastapi import APIRouter, Depends, Query, Path, Response
 from sqlalchemy.orm import Session
 from app.database.database import get_db
 from app.core.auth_deps import require_principal_or_teacher
@@ -50,7 +50,8 @@ def get_top_performers(
     limit: int = Query(5, ge=1, le=50, description="Max items to return"),
     sort_by: TopSortBy = Query(TopSortBy.FOCUS, description="Sort by focus or participation"),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_principal_or_teacher)
+    current_user: dict = Depends(require_principal_or_teacher),
+    response: Response = None
 ):
     """
     Mengambil data berdasarkan peringkat terbaik 
@@ -58,6 +59,8 @@ def get_top_performers(
     user_id = uuid.UUID(current_user.get("sub"))
     role = current_user.get("role")
     if role == "teacher" and entity == TopEntityTarget.TEACHER:
+        if response:
+            response.status_code = 403
         return BaseResponse(status_code=403, message="Teachers cannot view teacher rankings", data=[])
     data = DashboardService.get_top_performers(db, entity, limit, sort_by, role, user_id)
     return BaseResponse(message=f"Top {limit} {entity.value}s retrieved successfully", data=data)
@@ -67,7 +70,8 @@ def get_dashboard_warnings(
     entity: TopEntityTarget = Path(...),
     threshold: float = Query(60.0, ge=0.0, le=100.0, description="Batas minimum focus score (persentase)"),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_principal_or_teacher)
+    current_user: dict = Depends(require_principal_or_teacher),
+    response: Response = None
 ):
     """
     Mengambil data berdasarkan peringkat terbaik 
@@ -75,6 +79,8 @@ def get_dashboard_warnings(
     user_id = uuid.UUID(current_user.get("sub"))
     role = current_user.get("role")
     if role == "teacher" and entity == TopEntityTarget.TEACHER:
+        if response:
+            response.status_code = 403
         return BaseResponse(status_code=403, message="Teachers cannot view teacher warnings", data=[])
     data = DashboardService.get_dashboard_warnings(db, entity, threshold, role, user_id)
     return BaseResponse(message=f"Warnings for {entity.value}s with focus below {threshold}% retrieved", data=data)

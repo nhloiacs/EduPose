@@ -1,11 +1,15 @@
 import pytest
 import uuid
+from datetime import date, datetime, timedelta
+from typing import List
+from app.modules.dashboard.schema import Granularity, TopEntityTarget, TopSortBy
 from app.modules.dashboard.service import DashboardService
 from app.models.student import Student
 from app.models.classroom import Classroom
 from app.models.teacher import Teacher
 from app.models.classroom_session import ClassroomSession
 from app.models.classroom_metric import ClassroomMetric
+from app.models.student_metric import StudentMetric
 
 def setup_teacher(db, name):
     uid = uuid.uuid4().hex[:4]
@@ -61,3 +65,71 @@ def test_get_dashboard_teacher_stats(db_session):
     assert data.total_subjects == 1
     assert data.metrics_summary.avg_focus_percentage == 90.0
     assert data.metrics_summary.total_raised_hand == 5
+
+def test_get_metrics_daily(db_session):
+    teacher = setup_teacher(db_session, "Metric Teacher")
+    classroom = setup_classroom(db_session, "Metric Class")
+    today = date.today()
+    session = ClassroomSession(classroom_id=classroom.id, teacher_id=teacher.id, subject="Sejarah", start_time=datetime.now())
+    db_session.add(session)
+    db_session.commit()
+    metric = ClassroomMetric(session_id=session.id, focus_percentage=85.5, active_students=30, using_phone_count=2, raised_hand_count=10)
+    db_session.add(metric)
+    db_session.commit()
+    data = DashboardService.get_metrics(db_session, Granularity.DAILY, today - timedelta(days=1), today + timedelta(days=1), "principal", uuid.uuid4())
+    assert len(data) == 1
+    assert data[0].type == "daily"
+    assert data[0].avg_focus_percentage == 85.5
+    assert data[0].total_using_phone == 2
+
+def test_get_top_performers_student(db_session):
+    teacher = setup_teacher(db_session, "Top Teacher")
+    classroom = setup_classroom(db_session, "Top Class")
+    s1 = Student(name="Pintar", nis="T1", classroom_id=classroom.id)
+    s2 = Student(name="Kurang", nis="T2", classroom_id=classroom.id)
+    db_session.add_all([s1, s2])
+    db_session.commit()
+    session = ClassroomSession(classroom_id=classroom.id, teacher_id=teacher.id, subject="Fisika")
+    db_session.add(session)
+    db_session.commit()
+    sm1 = StudentMetric(session_id=session.id, student_id=s1.id, focus_score=95.0, raised_hand_count=10)
+    sm2 = StudentMetric(session_id=session.id, student_id=s2.id, focus_score=50.0, raised_hand_count=1)
+    db_session.add_all([sm1, sm2])
+    db_session.commit()
+    data = DashboardService.get_top_performers(db_session, TopEntityTarget.STUDENT, limit=2, sort_by=TopSortBy.FOCUS, role="principal", uid=uuid.uuid4())
+    assert len(data) == 2
+    assert data[0].name == "Pintar"
+    assert data[0].avg_focus_percentage == 95.0
+    assert data[1].name == "Kurang"
+
+def test_get_dashboard_warnings_classroom(db_session):
+    teacher = setup_teacher(db_session, "Warn Teacher")
+    c_good = setup_classroom(db_session, "Good Class")
+    c_bad = setup_classroom(db_session, "Bad Class")
+    sess_good = ClassroomSession(classroom_id=c_good.id, teacher_id=teacher.id, subject="Kimia")
+    sess_bad = ClassroomSession(classroom_id=c_bad.id, teacher_id=teacher.id, subject="Kimia")
+    db_session.add_all([sess_good, sess_bad])
+    db_session.commit()
+    metric_good = ClassroomMetric(session_id=sess_good.id, focus_percentage=80.0, raised_hand_count=5)
+    metric_bad = ClassroomMetric(session_id=sess_bad.id, focus_percentage=40.0, raised_hand_count=0)
+    db_session.add_all([metric_good, metric_bad])
+    db_session.commit()
+    data = DashboardService.get_dashboard_warnings(db_session, TopEntityTarget.CLASSROOM, threshold=50.0, role="principal", uid=uuid.uuid4())
+    assert len(data) == 1
+    assert data[0].name == "Bad Class"
+    assert data[0].avg_focus_percentage == 40.0
+
+def test_get_dashboard_warnings_teacher_role_filter(db_session):
+    teacher = setup_teacher(db_session, "Teacher Filter")
+    classroom = setup_classroom(db_session, "Filter Class")
+    session = ClassroomSession(classroom_id=classroom.id, teacher_id=teacher.id, subject="Biologi")
+    db_session.add(session)
+    db_session.commit()
+    metric = ClassroomMetric(session_id=session.id, focus_percentage=30.0)
+    db_session.add(metric)
+    db_session.commit()
+    data_self = DashboardService.get_dashboard_warnings(db_session, TopEntityTarget.CLASSROOM, threshold=50.0, role="teacher", uid=teacher.id)
+    assert len(data_self) == 1
+    other_uid = uuid.uuid4()
+    data_other = DashboardService.get_dashboard_warnings(db_session, TopEntityTarget.CLASSROOM, threshold=50.0, role="teacher", uid=other_uid)
+    assert len(data_other) == 0
