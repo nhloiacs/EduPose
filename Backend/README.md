@@ -51,13 +51,13 @@ Berikut adalah status pengembangan fitur saat ini:
 - [x] Detail review classrooms untuk role principal
 - [x] Detail review students untuk role principal
 - [x] Detail review teachers untuk role principal
+- [x] Detail review classroom session untuk role teacher
+- [x] View classroom session untuk role teacher
+- [x] Dashboard untuk role principal
 
 ### Belum Dibuat / Dalam Pengembangan
-- [ ] Detail review classroom session untuk role teacher
 - [ ] Buat classroom session untuk role teacher
 - [ ] Absen classroom session untuk role teacher
-- [ ] View classroom session untuk role teacher
 - [ ] Absen ulang classroom session untuk role teacher
-- [ ] Dashboard untuk role principal
 - [ ] Live preview untuk role principal
 
