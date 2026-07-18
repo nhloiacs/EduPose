@@ -49,7 +49,6 @@ def test_get_all_classrooms_search(db_session):
     data = generate_unique_classroom()
     ClassroomService.create_classroom(db_session, data)    
     items, total = ClassroomService.get_all_classrooms(db_session, 1, 10, search=data.name)
-    
     assert total >= 1
     assert items[0].name == data.name
 

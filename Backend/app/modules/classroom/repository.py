@@ -9,8 +9,6 @@ from app.models.classroom_metric import ClassroomMetric
 from app.models.teacher import Teacher
 from app.models.student import Student
 
-DEFAULT_CAMERA_ID = None 
-
 class ClassroomRepository:
     @staticmethod
     def get_by_name(db: Session, name: str):
@@ -30,7 +28,6 @@ class ClassroomRepository:
             except ValueError:
                 search_term = f"%{search}%"
                 query = query.filter(Classroom.name.ilike(search_term))
-
         total = query.count()
         items = query.offset(skip).limit(limit).all()
         return items, total
@@ -38,8 +35,7 @@ class ClassroomRepository:
     @staticmethod
     def create(db: Session, data: ClassroomCreate):
         classroom = Classroom(
-            name=data.name,
-            camera_id=data.camera_id if hasattr(data, 'camera_id') else None
+            name=data.name
         )
         db.add(classroom)
         db.commit()
@@ -50,7 +46,6 @@ class ClassroomRepository:
     def update(db: Session, classroom: Classroom, update_data: dict):
         for key, value in update_data.items():
             setattr(classroom, key, value)
-        
         db.commit()
         db.refresh(classroom)
         return classroom
@@ -60,7 +55,6 @@ class ClassroomRepository:
         classroom = db.query(Classroom).filter(Classroom.id == classroom_id).first()
         if not classroom:
             return None
-
         classroom.deleted_at = func.now()
         db.commit()
         return classroom
@@ -76,7 +70,6 @@ class ClassroomRepository:
     def reactivate_classroom(db: Session, classroom: Classroom, data: ClassroomCreate):
         classroom.deleted_at = None
         classroom.name = data.name 
-        classroom.camera_id = data.camera_id if hasattr(data, 'camera_id') else None
         db.commit()
         db.refresh(classroom)
         return classroom
@@ -102,10 +95,8 @@ class ClassroomRepository:
         ).join(
             Teacher, ClassroomSession.teacher_id == Teacher.id, isouter=True
         ).filter(ClassroomSession.classroom_id == classroom_id)
-
         if search:
             query = query.filter(ClassroomSession.subject.ilike(f"%{search}%"))
-
         total = query.count()
         items = query.offset(skip).limit(limit).all()
         return items, total
@@ -115,7 +106,6 @@ class ClassroomRepository:
         query = db.query(Student).filter(Student.classroom_id == classroom_id, Student.deleted_at.is_(None))
         if search:
             query = query.filter(or_(Student.name.ilike(f"%{search}%"), Student.nis.ilike(f"%{search}%")))
-        
         total = query.count()
         items = query.offset(skip).limit(limit).all()
         return items, total

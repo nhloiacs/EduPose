@@ -1,9 +1,11 @@
 import uuid
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_, cast, String
+from typing import Optional
 from app.models.classroom_session import ClassroomSession
 from app.models.classroom import Classroom
 from app.models.teacher import Teacher
+from app.models.camera import Camera
 from app.models.classroom_metric import ClassroomMetric
 from app.models.student import Student
 from app.models.student_metric import StudentMetric
@@ -15,6 +17,7 @@ class ClassroomSessionRepository:
             ClassroomSession,
             Classroom.name.label("classroom_name"),
             Teacher.name.label("teacher_name"),
+            Camera.name.label("camera_name"),
             func.coalesce(func.avg(ClassroomMetric.focus_percentage), 0).label("avg_focus"),
             func.coalesce(func.avg(ClassroomMetric.active_students), 0).label("avg_active"),
             func.coalesce(func.sum(ClassroomMetric.using_phone_count), 0).label("sum_phone"),
@@ -23,6 +26,8 @@ class ClassroomSessionRepository:
             Classroom, ClassroomSession.classroom_id == Classroom.id
         ).outerjoin(
             Teacher, ClassroomSession.teacher_id == Teacher.id
+        ).outerjoin(
+            Camera, ClassroomSession.camera_id == Camera.id
         ).outerjoin(
             ClassroomMetric, ClassroomSession.id == ClassroomMetric.session_id
         ).filter(ClassroomSession.deleted_at.is_(None))
@@ -35,12 +40,13 @@ class ClassroomSessionRepository:
                     ClassroomSession.subject.ilike(search_term),
                     Classroom.name.ilike(search_term),
                     Teacher.name.ilike(search_term),
+                    Camera.name.ilike(search_term),
                     cast(ClassroomSession.start_time, String).ilike(search_term)
                 )
             )
-        query = query.group_by(ClassroomSession.id, Classroom.id, Teacher.id)
+        query = query.group_by(ClassroomSession.id, Classroom.id, Teacher.id, Camera.id)
         total = query.count()
-        items = query.order_by(ClassroomSession.start_time.desc()).offset(skip).limit(limit).all()
+        items = query.order_by(ClassroomSession.start_time.asc()).offset(skip).limit(limit).all()
         return items, total
 
     @staticmethod
@@ -56,6 +62,7 @@ class ClassroomSessionRepository:
             ClassroomSession,
             Classroom.name.label("classroom_name"),
             Teacher.name.label("teacher_name"),
+            Camera.name.label("camera_name"), # <-- Tarik nama kamera untuk detail
             func.coalesce(func.avg(ClassroomMetric.focus_percentage), 0).label("avg_focus"),
             func.coalesce(func.avg(ClassroomMetric.active_students), 0).label("avg_active"),
             func.coalesce(func.sum(ClassroomMetric.using_phone_count), 0).label("sum_phone"),
@@ -65,25 +72,31 @@ class ClassroomSessionRepository:
         ).outerjoin(
             Teacher, ClassroomSession.teacher_id == Teacher.id
         ).outerjoin(
+            Camera, ClassroomSession.camera_id == Camera.id
+        ).outerjoin(
             ClassroomMetric, ClassroomSession.id == ClassroomMetric.session_id
         ).filter(
             ClassroomSession.id == session_id,
             ClassroomSession.deleted_at.is_(None)
         ).group_by(
-            ClassroomSession.id, Classroom.id, Teacher.id
+            ClassroomSession.id, Classroom.id, Teacher.id, Camera.id
         ).first()
 
     @staticmethod
-    def update_subject(db: Session, session_id: uuid.UUID, new_subject: str):
+    def update(db: Session, session_id: uuid.UUID, subject: Optional[str] = None, camera_id: Optional[uuid.UUID] = None):
         session = db.query(ClassroomSession).filter(
             ClassroomSession.id == session_id,
             ClassroomSession.deleted_at.is_(None)
         ).first()
         if session:
-            session.subject = new_subject
+            if subject is not None:
+                session.subject = subject
+            if camera_id is not None:
+                session.camera_id = camera_id
             db.commit()
             db.refresh(session)
         return session
+
     @staticmethod
     def soft_delete(db: Session, session_id: uuid.UUID):
         session = db.query(ClassroomSession).filter(

@@ -14,12 +14,13 @@ CREATE TABLE teachers (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP
 );
-
 -- CAMERAS
 CREATE TABLE cameras (
     id UUID PRIMARY KEY,
-    device_code VARCHAR(50) UNIQUE NOT NULL,
-    status VARCHAR(20) DEFAULT 'ONLINE',
+    name VARCHAR(100) UNIQUE NOT NULL,
+    endpoint TEXT UNIQUE NOT NULL,
+    status VARCHAR(20) DEFAULT 'OFFLINE',
+    last_ping_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP
@@ -28,7 +29,6 @@ CREATE TABLE cameras (
 -- CLASSROOMS
 CREATE TABLE classrooms (
     id UUID PRIMARY KEY,
-    camera_id UUID REFERENCES cameras(id) ON DELETE SET NULL,
     name VARCHAR(50) UNIQUE NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -46,12 +46,12 @@ CREATE TABLE students (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP
 );
-
 -- SESSIONS
 CREATE TABLE classroom_sessions (
     id UUID PRIMARY KEY,
     classroom_id UUID REFERENCES classrooms(id) ON DELETE CASCADE,
     teacher_id UUID REFERENCES teachers(id) ON DELETE SET NULL,
+    camera_id UUID REFERENCES cameras(id) ON DELETE SET NULL,
     subject VARCHAR(100),
     start_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     end_time TIMESTAMP,

@@ -9,6 +9,7 @@ class PrincipalDashboardResponse(BaseModel):
     total_classrooms: int
     total_teachers: int
     total_subjects: int
+    total_cameras: int
 
 class TeacherDashboardMetrics(BaseModel):
     avg_focus_percentage: float
@@ -20,6 +21,7 @@ class TeacherDashboardResponse(BaseModel):
     total_classrooms: int
     total_students: int
     total_subjects: int
+    total_cameras: int
     metrics_summary: TeacherDashboardMetrics
 
 class Granularity(str, Enum):

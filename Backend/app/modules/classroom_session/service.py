@@ -34,7 +34,7 @@ class ClassroomSessionService:
                 pass
         items, total = ClassroomSessionRepository.get_all(db, skip, size, search, teacher_uuid)
         result = []
-        for session, classroom_name, teacher_name, avg_focus, avg_active, sum_phone, sum_raised in items:
+        for session, classroom_name, teacher_name, camera_name, avg_focus, avg_active, sum_phone, sum_raised in items:
             result.append(ClassroomSessionListRead(
                 id=session.id,
                 classroom_name=classroom_name,
@@ -43,6 +43,8 @@ class ClassroomSessionService:
                 start_time=session.start_time,
                 end_time=session.end_time,
                 status=session.status,
+                camera_id=session.camera_id, # TAMBAHAN
+                camera_name=camera_name,     # TAMBAHAN
                 metrics_summary=SessionMetricSummary(
                     avg_focus_percentage=round(avg_focus, 2),
                     avg_active_students=round(avg_active, 2),
@@ -58,14 +60,18 @@ class ClassroomSessionService:
         if not session:
             raise NotFoundException("Sesi kelas tidak ditemukan")
         ClassroomSessionService._verify_access(session.teacher_id, teacher_id)
-        return ClassroomSessionEditRead(id=session.id, subject=session.subject)
+        return ClassroomSessionEditRead(
+            id=session.id, 
+            subject=session.subject, 
+            camera_id=session.camera_id
+        )
 
     @staticmethod
     def get_session_detail(db: Session, session_id: uuid.UUID, teacher_id: Optional[str] = None) -> ClassroomSessionDetailRead:
         result = ClassroomSessionRepository.get_detail_with_metrics(db, session_id)
         if not result:
             raise NotFoundException("Sesi kelas tidak ditemukan")
-        session, classroom_name, teacher_name, avg_focus, avg_active, sum_phone, sum_raised = result
+        session, classroom_name, teacher_name, camera_name, avg_focus, avg_active, sum_phone, sum_raised = result
         ClassroomSessionService._verify_access(session.teacher_id, teacher_id)
         return ClassroomSessionDetailRead(
             id=session.id,
@@ -73,6 +79,8 @@ class ClassroomSessionService:
             classroom_name=classroom_name,
             teacher_id=session.teacher_id,
             teacher_name=teacher_name,
+            camera_id=session.camera_id,
+            camera_name=camera_name,
             subject=session.subject,
             start_time=session.start_time,
             end_time=session.end_time,
@@ -91,8 +99,17 @@ class ClassroomSessionService:
         if not session:
             raise NotFoundException("Sesi kelas tidak ditemukan")
         ClassroomSessionService._verify_access(session.teacher_id, teacher_id)
-        updated_session = ClassroomSessionRepository.update_subject(db, session_id, data.subject)
-        return ClassroomSessionEditRead(id=updated_session.id, subject=updated_session.subject)
+        updated_session = ClassroomSessionRepository.update(
+            db, 
+            session_id, 
+            subject=data.subject, 
+            camera_id=data.camera_id
+        )
+        return ClassroomSessionEditRead(
+            id=updated_session.id, 
+            subject=updated_session.subject,
+            camera_id=updated_session.camera_id
+        )
 
     @staticmethod
     def delete_session(db: Session, session_id: uuid.UUID, teacher_id: Optional[str] = None):

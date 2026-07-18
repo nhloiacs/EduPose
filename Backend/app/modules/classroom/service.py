@@ -3,7 +3,11 @@ from typing import Optional, Tuple, List, Any
 from sqlalchemy.orm import Session
 from app.core.exceptions import ConflictException, NotFoundException
 from app.modules.classroom.repository import ClassroomRepository
-from app.modules.classroom.schema import ClassroomCreate, ClassroomSessionRead, SessionMetric, ClassroomDetailResponse, ClassroomMetricsSummary, ClassroomStudentRead, ClassroomSelectRead
+from app.modules.classroom.schema import (
+    ClassroomCreate, ClassroomSessionRead, SessionMetric, 
+    ClassroomDetailResponse, ClassroomMetricsSummary, 
+    ClassroomStudentRead, ClassroomSelectRead
+)
 
 class ClassroomService:
     @staticmethod
@@ -17,23 +21,19 @@ class ClassroomService:
     def create_classroom(db: Session, data: ClassroomCreate) -> Any:
         if ClassroomRepository.get_by_name(db, data.name):
             raise ConflictException(f"Classroom dengan nama '{data.name}' sudah terdaftar.")
-
         deleted_classroom = ClassroomRepository.get_soft_deleted_by_name(db, data.name)
-        
         if deleted_classroom:
             return ClassroomRepository.reactivate_classroom(
                 db=db, 
                 classroom=deleted_classroom, 
                 data=data
             )
-
         return ClassroomRepository.create(db, data)
 
     @staticmethod
     def get_all_classrooms(db: Session, page: int, size: int, search: Optional[str] = None) -> Tuple[List[Any], int]:
         page = max(1, page)
         skip = (page - 1) * size
-        
         items, total = ClassroomRepository.get_all(db, skip, size, search)
         return items, total
 
@@ -42,11 +42,9 @@ class ClassroomService:
         classroom = ClassroomRepository.get_by_id(db, classroom_id)
         if not classroom:
             raise NotFoundException("Classroom tidak ditemukan")
-
         if "name" in update_data and update_data["name"] != classroom.name:
             if ClassroomRepository.get_by_name(db, update_data["name"]):
                 raise ConflictException(f"Nama classroom '{update_data['name']}' sudah digunakan.")
-
         return ClassroomRepository.update(db, classroom, update_data)
 
     @staticmethod
@@ -60,10 +58,10 @@ class ClassroomService:
     def get_classroom_detail(db: Session, classroom_id: uuid.UUID) -> ClassroomDetailResponse:
         result = ClassroomRepository.get_detail_with_avg_metrics(db, classroom_id)
         if not result: raise NotFoundException("Classroom tidak ditemukan")
-        
         cls, f, a, p, r = result
         return ClassroomDetailResponse(
-            id=cls.id, name=cls.name, camera_id=cls.camera_id,
+            id=cls.id, 
+            name=cls.name, 
             metrics_summary=ClassroomMetricsSummary(
                 avg_focus_percentage=round(f, 2),
                 avg_active_students=round(a, 2),
@@ -77,7 +75,6 @@ class ClassroomService:
         page = max(1, page)
         skip = (page - 1) * size
         items, total = ClassroomRepository.get_sessions(db, classroom_id, skip, size, search)
-        
         result = []
         for session, metric, teacher_name in items:
             metrics_data = SessionMetric(
@@ -86,7 +83,6 @@ class ClassroomService:
                 using_phone_count=metric.using_phone_count if metric else 0,
                 raised_hand_count=metric.raised_hand_count if metric else 0
             )
-
             result.append(
                 ClassroomSessionRead(
                     session_id=session.id,

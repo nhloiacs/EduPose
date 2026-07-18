@@ -9,6 +9,7 @@ from app.models.classroom_session import ClassroomSession
 from app.models.classroom_metric import ClassroomMetric
 from app.models.student_metric import StudentMetric
 from app.modules.dashboard.schema import Granularity, TopSortBy
+from app.models.camera import Camera
 
 class DashboardRepository:
     @staticmethod
@@ -24,7 +25,10 @@ class DashboardRepository:
             ClassroomSession.subject.isnot(None),
             ClassroomSession.subject != ""
         ).scalar() or 0
-        return total_students, total_classrooms, total_teachers, total_subjects
+        total_cameras = db.query(func.count(Camera.id)).filter(
+            Camera.deleted_at.is_(None)
+        ).scalar() or 0
+        return total_students, total_classrooms, total_teachers, total_subjects, total_cameras
 
     @staticmethod
     def get_teacher_stats(db: Session, teacher_id: uuid.UUID):
@@ -46,6 +50,11 @@ class DashboardRepository:
             ClassroomSession.subject.isnot(None),
             ClassroomSession.subject != ""
         ).scalar() or 0
+        total_cameras = db.query(func.count(distinct(ClassroomSession.camera_id))).filter(
+            ClassroomSession.teacher_id == teacher_id,
+            ClassroomSession.deleted_at.is_(None),
+            ClassroomSession.camera_id.isnot(None)
+        ).scalar() or 0
         metrics = db.query(
             func.coalesce(func.avg(ClassroomMetric.focus_percentage), 0).label("avg_focus"),
             func.coalesce(func.avg(ClassroomMetric.active_students), 0).label("avg_active"),
@@ -57,7 +66,7 @@ class DashboardRepository:
             ClassroomSession.teacher_id == teacher_id,
             ClassroomSession.deleted_at.is_(None)
         ).first()
-        return total_classrooms, total_students, total_subjects, metrics
+        return total_classrooms, total_students, total_subjects, total_cameras, metrics
 
     @staticmethod
     def get_metrics(db: Session, granularity: Granularity, start: date, end: date, teacher_id: uuid.UUID = None):

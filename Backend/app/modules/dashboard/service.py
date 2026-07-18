@@ -11,20 +11,22 @@ class DashboardService:
     @staticmethod
     def get_dashboard_data(db: Session, user_role: str, user_id: uuid.UUID) -> Union[PrincipalDashboardResponse, TeacherDashboardResponse]:
         if user_role == "principal":
-            total_students, total_classrooms, total_teachers, total_subjects = DashboardRepository.get_principal_stats(db)
+            total_students, total_classrooms, total_teachers, total_subjects, total_cameras = DashboardRepository.get_principal_stats(db)
             return PrincipalDashboardResponse(
                 total_students=total_students,
                 total_classrooms=total_classrooms,
                 total_teachers=total_teachers,
-                total_subjects=total_subjects
+                total_subjects=total_subjects,
+                total_cameras=total_cameras
             )
         else:
-            total_classrooms, total_students, total_subjects, metrics = DashboardRepository.get_teacher_stats(db, user_id)
+            total_classrooms, total_students, total_subjects, total_cameras, metrics = DashboardRepository.get_teacher_stats(db, user_id)
             avg_focus, avg_active, sum_phone, sum_raised = metrics if metrics else (0.0, 0.0, 0, 0)
             return TeacherDashboardResponse(
                 total_classrooms=total_classrooms,
                 total_students=total_students,
                 total_subjects=total_subjects,
+                total_cameras=total_cameras,
                 metrics_summary=TeacherDashboardMetrics(
                     avg_focus_percentage=round(avg_focus, 2),
                     avg_active_students=round(avg_active, 2),

@@ -9,8 +9,8 @@ from app.models.classroom_metric import ClassroomMetric
 from app.models.student import Student
 from app.models.student_metric import StudentMetric
 from app.models.teacher import Teacher
-
 from fastapi import HTTPException
+from app.models.camera import Camera
 
 def setup_teacher(db, name="Guru Test"):
     uid = uuid.uuid4().hex[:6]
@@ -36,7 +36,7 @@ def setup_session(db, classroom_id, subject="Biologi", teacher_id=None):
 def setup_classroom(db, name=None):
     if not name:
         name = f"Room-{uuid.uuid4().hex[:6]}"
-    classroom = Classroom(name=name, camera_id=None)
+    classroom = Classroom(name=name) 
     db.add(classroom)
     db.commit()
     db.refresh(classroom)
@@ -80,6 +80,7 @@ def setup_student_metric(db, session_id, student_id, focus=85.0):
     db.commit()
     return metric
 
+#
 def test_get_all_sessions(db_session):
     classroom = setup_classroom(db_session)
     session1 = setup_session(db_session, classroom.id, subject="Kimia")
@@ -88,6 +89,7 @@ def test_get_all_sessions(db_session):
     setup_classroom_metric(db_session, session1.id, focus=100.0, active=30, phone=3, raised=4)
     items, total = ClassroomSessionService.get_all_sessions(db_session, page=1, size=10)
     assert total >= 2
+    assert hasattr(items[0], 'camera_name') 
     subjects = [item.subject for item in items]
     assert "Kimia" in subjects
     assert "Fisika" in subjects
@@ -97,6 +99,7 @@ def test_get_all_sessions(db_session):
     assert kimia_session.metrics_summary.avg_active_students == 25.0
     assert kimia_session.metrics_summary.total_using_phone == 4
     assert kimia_session.metrics_summary.total_raised_hand == 6
+#
 
 def test_get_session_edit_success(db_session):
     classroom = setup_classroom(db_session)
@@ -184,3 +187,15 @@ def test_teacher_access_forbidden(db_session):
             ClassroomSessionUpdate(subject="Hacked"), 
             teacher_id=str(teacher_penyusup.id)
         )
+
+def test_get_session_detail_camera_name(db_session):
+    camera = Camera(name="Kamera Lab 1", endpoint="http://1.1.1.1")
+    db_session.add(camera)
+    db_session.commit()
+    classroom = setup_classroom(db_session)
+    session = ClassroomSession(classroom_id=classroom.id, subject="Sains", camera_id=camera.id)
+    db_session.add(session)
+    db_session.commit()
+    detail = ClassroomSessionService.get_session_detail(db_session, session.id)
+    assert detail.camera_name == "Kamera Lab 1"
+    assert detail.camera_id == camera.id

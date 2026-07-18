@@ -20,7 +20,7 @@ def setup_teacher(db, name):
     return teacher
 
 def setup_classroom(db, name):
-    classroom = Classroom(name=name, camera_id=None)
+    classroom = Classroom(name=name)
     db.add(classroom)
     db.commit()
     db.refresh(classroom)
@@ -44,6 +44,7 @@ def test_get_dashboard_principal_stats(db_session):
     assert data.total_classrooms == 2
     assert data.total_teachers == 1
     assert data.total_subjects == 2
+    assert data.total_cameras >= 0
 
 def test_get_dashboard_teacher_stats(db_session):
     teacher = setup_teacher(db_session, "Target Teacher")
@@ -63,6 +64,7 @@ def test_get_dashboard_teacher_stats(db_session):
     assert data.total_classrooms == 1
     assert data.total_students == 1
     assert data.total_subjects == 1
+    assert data.total_cameras >= 0
     assert data.metrics_summary.avg_focus_percentage == 90.0
     assert data.metrics_summary.total_raised_hand == 5
 

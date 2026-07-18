@@ -41,6 +41,7 @@ def test_principal_dashboard_api(client_principal):
     data = response.json()["data"]
     assert "total_students" in data
     assert "total_teachers" in data
+    assert "total_cameras" in data
 
 def test_teacher_dashboard_api(client_teacher):
     response = client_teacher.get("/dashboard/")
@@ -48,6 +49,7 @@ def test_teacher_dashboard_api(client_teacher):
     data = response.json()["data"]
     assert "metrics_summary" in data
     assert "total_classrooms" in data
+    assert "total_cameras" in data
 
 def setup_teacher(db, name):
     uid = uuid.uuid4().hex[:4]
@@ -58,7 +60,7 @@ def setup_teacher(db, name):
     return teacher
 
 def setup_classroom(db, name):
-    classroom = Classroom(name=name, camera_id=None)
+    classroom = Classroom(name=name)
     db.add(classroom)
     db.commit()
     db.refresh(classroom)

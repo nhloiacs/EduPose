@@ -10,8 +10,6 @@ from app.models.classroom_session import ClassroomSession
 from app.models.classroom_metric import ClassroomMetric
 from app.models.student import Student
 from app.modules.classroom.schema import ClassroomCreate
-#
-from app.models.camera import Camera
 
 @pytest.fixture
 def client(db_session):
@@ -50,15 +48,6 @@ def test_list_teachers_api(client):
     response = client.get("/teachers/?page=1&size=10")
     assert response.status_code == 200
     assert "items" in response.json()["data"]
-
-#
-def setup_test_camera(db):
-    camera = Camera(name=f"Camera-{uuid.uuid4().hex[:4]}")
-    db.add(camera)
-    db.commit()
-    db.refresh(camera)
-    return camera
-#
 
 def test_get_teacher_detail_api(client, db_session):
     from app.modules.teacher.service import TeacherService

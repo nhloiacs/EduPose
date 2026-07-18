@@ -12,11 +12,9 @@ class ClassroomCreate(ClassroomBase):
 
 class ClassroomUpdate(BaseModel):
     name: Optional[str] = None
-    camera_id: Optional[uuid.UUID] = None
 
 class ClassroomRead(ClassroomBase):
     id: uuid.UUID
-    camera_id: Optional[uuid.UUID]
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
@@ -34,7 +32,6 @@ class ClassroomMetricsSummary(BaseModel):
 class ClassroomDetailResponse(BaseModel):
     id: uuid.UUID
     name: str
-    camera_id: Optional[uuid.UUID]
     metrics_summary: ClassroomMetricsSummary
 
 class SessionMetric(BaseModel):

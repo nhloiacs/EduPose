@@ -11,6 +11,7 @@ from app.main import app
 from app.core.auth_deps import require_principal, require_principal_or_teacher
 from app.database.database import get_db
 
+# UP
 @pytest.fixture
 def client(db_session):
     def _get_test_db():
