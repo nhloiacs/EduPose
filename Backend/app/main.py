@@ -7,6 +7,7 @@ from app.modules.classroom.api import router as classroom_router
 from app.modules.student.api import router as student_router
 from app.modules.classroom_session.api import router as classroom_session_router
 from app.modules.dashboard.api import router as dashboard_router
+from app.modules.camera.api import router as camera_router
 
 app = FastAPI()
 
@@ -30,6 +31,7 @@ app.include_router(classroom_router)
 app.include_router(student_router)
 app.include_router(classroom_session_router)
 app.include_router(dashboard_router)
+app.include_router(camera_router)
 
 @app.get("/")
 def health():
