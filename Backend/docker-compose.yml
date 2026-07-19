@@ -2,9 +2,11 @@ services:
 
   api:
     build: .
-
     container_name: smart_classroom_api
 
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    
     ports:
       - "8000:8000"
 

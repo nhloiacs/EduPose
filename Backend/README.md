@@ -1,6 +1,21 @@
 # Backend
 
-Panduan singkat untuk menjalankan lingkungan pengembangan menggunakan Docker dan daftar tugas pengembangan.
+Panduan singkat untuk setting ffmpeg, menjalankan lingkungan pengembangan menggunakan Docker dan daftar tugas pengembangan.
+
+## Setting FFMPEG RSTF Streaming
+
+Jalankan script di folder scripts 
+
+Untuk Windows
+```bash
+./local_rstp_setup_windows.bat
+```
+Untuk Linux
+```bash
+./local_rstp_setup_linux.sh
+```
+
+---
 
 ## Cara Menjalankan Docker
 
@@ -54,10 +69,10 @@ Berikut adalah status pengembangan fitur saat ini:
 - [x] Detail review classroom session untuk role teacher
 - [x] View classroom session untuk role teacher
 - [x] Dashboard untuk role principal
+- [x] Live preview untuk role principal
 
 ### Belum Dibuat / Dalam Pengembangan
 - [ ] Buat classroom session untuk role teacher
 - [ ] Absen classroom session untuk role teacher
 - [ ] Absen ulang classroom session untuk role teacher
-- [ ] Live preview untuk role principal
 

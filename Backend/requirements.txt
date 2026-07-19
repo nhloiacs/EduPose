@@ -11,3 +11,10 @@ python-jose[cryptography]
 python-multipart
 pytest
 httpx2
+opencv-python-headless
+numpy
+pandas
+xgboost
+scikit-learn
+joblib
+ultralytics
