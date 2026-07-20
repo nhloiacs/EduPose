@@ -9,7 +9,8 @@ INSERT INTO teachers (id, nip, name, email, password_hash, role, photo_filepath)
 
 -- 1 Camera
 INSERT INTO cameras (id, name, endpoint, status, last_ping_at, created_at, updated_at) VALUES 
-('11111111-1111-1111-1111-111111111111', 'Kamera 1', 'rtsp://host.docker.internal:8554/cam', 'ONLINE', '2026-06-17 09:20:00', '2026-06-17 09:20:00', '2026-06-17 09:20:00');
+('11111111-1111-1111-1111-111111111111', 'Kamera 1', 'rtsp://host.docker.internal:8554/cam', 'ONLINE', '2026-06-17 09:20:00', '2026-06-17 09:20:00', '2026-06-17 09:20:00'),
+('11111111-1111-1111-1111-111111111112', 'Kamera 2', 'rtsp://localhost:8554/cam', 'ONLINE', '2026-06-17 09:20:00', '2026-06-17 09:20:00', '2026-06-17 09:20:00');
 
 -- 5 Classrooms
 INSERT INTO classrooms (id, name) VALUES

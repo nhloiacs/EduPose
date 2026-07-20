@@ -1,18 +1,24 @@
-import cv2
 import time
 import threading
 import logging
+import cv2
+import uuid
+from app.database.database import SessionLocal
+from app.models.frame_log import FrameLog
 from app.modules.stream.ai_processor import AIProcessor
 
 logger = logging.getLogger(__name__)
 
+
 class ActiveStream:
-    def __init__(self, endpoint):
+    def __init__(self, endpoint, session_id):
         self.endpoint = endpoint
+        self.session_id = session_id
         self.cap = cv2.VideoCapture(0 if endpoint == "0" else endpoint)
         self.latest_frame = None
         self.detections = []
         self.is_running = True
+        self.is_evaluating = False
         self.ai_thread = threading.Thread(target=self._ai_worker_loop, daemon=True)
         self.ai_thread.start()
 
@@ -23,10 +29,25 @@ class ActiveStream:
                 try:
                     new_detections = AIProcessor.process_frame(frame_to_process)
                     self.detections = new_detections
+                    if self.is_evaluating and len(new_detections) > 0:
+                        self._save_frame_log(new_detections)
                 except Exception as e:
-                    logger.error(f"[AI WORKER] Error processing frame: {e}")
-            # Tunggu 5 detik sebelum proses frame berikutnya
+                    logger.error(f"[AI WORKER] Error: {e}")
             time.sleep(5.0)
+
+    def _save_frame_log(self, detections):
+        db = SessionLocal()
+        try:
+            log_entry = FrameLog(
+                session_id=self.session_id,
+                payload=detections,
+            )
+            db.add(log_entry)
+            db.commit()
+        except Exception as e:
+            logger.error(f"Gagal save frame log: {e}")
+        finally:
+            db.close()
 
     def read_and_draw(self):
         success, frame = self.cap.read()
@@ -35,14 +56,21 @@ class ActiveStream:
         self.latest_frame = frame.copy()
         for det in self.detections:
             x1, y1, x2, y2 = det["bbox"]
-            cx, cy = det["center"]
             label = det["label"]
             conf = det["confidence"]
-            text = f"Student | {label} ({conf*100:.1f}%)"
-            color = (0, 255, 0)
+            if label == "focus":
+                color = (0, 255, 0)  # Hijau (Green)
+            elif label == "distracted":
+                color = (0, 0, 255)  # Merah (Red)
+            elif label == "raise-hand":
+                color = (0, 255, 255)  # Kuning (Yellow)
+            else:
+                color = (255, 255, 255)  # Putih (Default kalau '?')
+            text = f"Student | {label} ({conf * 100:.1f}%)"
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-            cv2.putText(frame, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
-            cv2.circle(frame, (cx, cy), 5, (255, 0, 0), -1)
+            cv2.putText(
+                frame, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2
+            )
         return True, frame
 
     def release(self):
@@ -51,25 +79,47 @@ class ActiveStream:
 
 
 class CameraManager:
-    @staticmethod
-    def generate_frames(endpoint: str):
-        stream = ActiveStream(endpoint)
+    _active_streams = {}
+
+    @classmethod
+    def get_or_create_stream(cls, endpoint: str, session_id: uuid.UUID):
+        if endpoint not in cls._active_streams:
+            cls._active_streams[endpoint] = ActiveStream(endpoint, session_id)
+        return cls._active_streams[endpoint]
+
+    @classmethod
+    def get_latest_frame(cls, endpoint: str):
+        stream = cls._active_streams.get(endpoint)
+        if stream and stream.latest_frame is not None:
+            return stream.latest_frame.copy()
+        return None
+
+    @classmethod
+    def generate_frames(cls, endpoint: str, session_id: uuid.UUID):
+        stream = cls.get_or_create_stream(endpoint, session_id)
         if not stream.cap.isOpened():
             logger.error(f"[STREAM] Gagal membuka kamera: {endpoint}")
             return
-        logger.info(f"[STREAM] Memulai koneksi ke: {endpoint}")
         try:
-            while True:
+            while stream.is_running:
                 success, frame = stream.read_and_draw()
                 if not success:
-                    logger.warning(f"[STREAM] Frame drop atau putus: {endpoint}")
                     break
-                ret, buffer = cv2.imencode('.jpg', frame)
+                ret, buffer = cv2.imencode(".jpg", frame)
                 if not ret:
                     continue
-                frame_bytes = buffer.tobytes()
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+                yield (
+                    b"--frame\r\n"
+                    b"Content-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n"
+                )
         finally:
+            pass
+
+    @classmethod
+    def stop_stream(cls, endpoint: str):
+        stream = cls._active_streams.pop(endpoint, None)
+        if stream:
             stream.release()
-            logger.info(f"[STREAM] Koneksi ditutup: {endpoint}")
+            logger.info(
+                f"[STREAM] Kamera untuk endpoint {endpoint} berhasil dimatikan."
+            )

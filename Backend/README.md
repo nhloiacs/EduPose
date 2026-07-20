@@ -4,13 +4,16 @@ Panduan singkat untuk setting ffmpeg, menjalankan lingkungan pengembangan menggu
 
 ## Setting FFMPEG RSTF Streaming
 
-Jalankan script di folder scripts 
+Jalankan script di folder scripts
 
 Untuk Windows
+
 ```bash
 ./local_rstp_setup_windows.bat
 ```
+
 Untuk Linux
+
 ```bash
 ./local_rstp_setup_linux.sh
 ```
@@ -22,6 +25,7 @@ Untuk Linux
 Pastikan Docker dan Docker Compose sudah terinstal. Gunakan perintah berikut untuk mengelola kontainer:
 
 ### 1. Menjalankan Aplikasi
+
 Perintah ini akan membangun (build) image dari Dockerfile dan menjalankan semua servis yang didefinisikan. Gunakan flag `--build` untuk memastikan perubahan kode terbaru diterapkan.
 
 ```bash
@@ -29,6 +33,7 @@ docker-compose up --build
 ```
 
 ### 2. Menghentikan dan Membersihkan
+
 Perintah ini akan menghentikan semua kontainer yang berjalan serta menghapusnya bersama dengan **volume** (database/storage) agar lingkungan kembali bersih dari awal.
 
 ```bash
@@ -55,6 +60,7 @@ Proyek ini menyediakan dua tampilan dokumentasi otomatis yang dapat diakses sete
 Berikut adalah status pengembangan fitur saat ini:
 
 ### Selesai Dibuat
+
 - [x] Inisialisasi proyek dan struktur folder
 - [x] Konfigurasi Docker & Docker Compose
 - [x] Setup koneksi database dasar
@@ -70,9 +76,8 @@ Berikut adalah status pengembangan fitur saat ini:
 - [x] View classroom session untuk role teacher
 - [x] Dashboard untuk role principal
 - [x] Live preview untuk role principal
+- [x] Buat classroom session untuk role teacher
+- [x] Absen classroom session untuk role teacher
+- [x] Absen ulang classroom session untuk role teacher
 
 ### Belum Dibuat / Dalam Pengembangan
-- [ ] Buat classroom session untuk role teacher
-- [ ] Absen classroom session untuk role teacher
-- [ ] Absen ulang classroom session untuk role teacher
-
