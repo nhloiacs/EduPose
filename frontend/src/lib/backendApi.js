@@ -208,6 +208,81 @@ export const listCollection = (resourcePath, token, params = {}) => {
   }).then((payload) => normalizePaginatedResponse(payload));
 };
 
+export const getCurrentTeacherProfile = (token) =>
+  apiRequest({
+    path: '/auth/profile',
+    method: 'GET',
+    token,
+  }).then((payload) => normalizeBaseResponse(payload));
+
+const appendTeacherFormValue = (formData, key, value) => {
+  if (value !== undefined && value !== null && value !== '') {
+    formData.append(key, value);
+  }
+};
+
+export const createTeacher = (teacher, token) => {
+  const formData = new FormData();
+  ['name', 'email', 'role', 'password', 'nip', 'file'].forEach((key) => appendTeacherFormValue(formData, key, teacher[key]));
+
+  return apiRequest({
+    path: '/teachers/',
+    method: 'POST',
+    token,
+    body: formData,
+  }).then((payload) => normalizeBaseResponse(payload));
+};
+
+export const updateTeacher = (teacherId, teacher, token) => {
+  const formData = new FormData();
+  ['name', 'email', 'role', 'nip', 'file'].forEach((key) => appendTeacherFormValue(formData, key, teacher[key]));
+
+  return apiRequest({
+    path: `/teachers/${teacherId}`,
+    method: 'PATCH',
+    token,
+    body: formData,
+  }).then((payload) => normalizeBaseResponse(payload));
+};
+
+export const getStudentDetail = (studentId, token) =>
+  apiRequest({ path: `/students/${studentId}`, method: 'GET', token })
+    .then((payload) => normalizeBaseResponse(payload));
+
+export const createStudent = (student, token) => {
+  const formData = new FormData();
+  ['name', 'nis', 'classroom_id', 'file'].forEach((key) => appendTeacherFormValue(formData, key, student[key]));
+  return apiRequest({ path: '/students/', method: 'POST', token, body: formData })
+    .then((payload) => normalizeBaseResponse(payload));
+};
+
+export const updateStudent = (studentId, student, token) => {
+  const formData = new FormData();
+  ['name', 'nis', 'classroom_id', 'file'].forEach((key) => appendTeacherFormValue(formData, key, student[key]));
+  return apiRequest({ path: `/students/${studentId}`, method: 'PATCH', token, body: formData })
+    .then((payload) => normalizeBaseResponse(payload));
+};
+
+export const deleteStudent = (studentId, token) =>
+  apiRequest({ path: `/students/${studentId}`, method: 'DELETE', token })
+    .then((payload) => normalizeBaseResponse(payload));
+
+export const getClassroomOptions = (token) =>
+  apiRequest({ path: '/classrooms/select', method: 'GET', token })
+    .then((payload) => normalizeBaseResponse(payload));
+
+export const createClassroom = (classroom, token) =>
+  apiRequest({ path: '/classrooms/', method: 'POST', token, body: classroom })
+    .then((payload) => normalizeBaseResponse(payload));
+
+export const updateClassroom = (classroomId, classroom, token) =>
+  apiRequest({ path: `/classrooms/${classroomId}`, method: 'PATCH', token, body: classroom })
+    .then((payload) => normalizeBaseResponse(payload));
+
+export const deleteClassroom = (classroomId, token) =>
+  apiRequest({ path: `/classrooms/${classroomId}`, method: 'DELETE', token })
+    .then((payload) => normalizeBaseResponse(payload));
+
 export const getPaginatedCollection = (response) => normalizePaginatedResponse(response);
 
 export const getBaseResponseData = (response) => normalizeBaseResponse(response).data;
