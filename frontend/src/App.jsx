@@ -35,11 +35,25 @@ import {
   Filler
 } from 'chart.js';
 import {
+  buildClassComparisonChart,
+  buildDailyAttentionChart,
+  buildReportsDailyTrendChart,
   buildTeacherProfile,
+  buildWeeklyAttentionChart,
   checkBackendHealth,
   clearStoredSession,
+  enrichStudentsWithPerformers,
+  getAverageFocusFromMetrics,
+  getDashboardMetrics,
+  getDashboardSummary,
+  getDashboardWarnings,
+  getDateRange,
+  getTopPerformers,
   listCollection,
   loginRequest,
+  mapClassroomRankings,
+  mapStudentWarnings,
+  mapTopPerformersToStudents,
   mergeBoxesFromStudents,
   mergeStudentsFromBackend,
   persistSession,
@@ -110,6 +124,11 @@ export default function App() {
   const [warnings, setWarnings] = useState(INITIAL_WARNINGS);
   const [backendClassrooms, setBackendClassrooms] = useState([]);
   const [backendTeachers, setBackendTeachers] = useState([]);
+  const [dashboardSummary, setDashboardSummary] = useState(null);
+  const [dailyMetrics, setDailyMetrics] = useState([]);
+  const [weeklyMetrics, setWeeklyMetrics] = useState([]);
+  const [topClassroomRankings, setTopClassroomRankings] = useState([]);
+  const [topStudentPerformers, setTopStudentPerformers] = useState([]);
   const [authToken, setAuthToken] = useState(storedSession.token);
   const [currentUser, setCurrentUser] = useState(storedSession.user);
   const [syncState, setSyncState] = useState(storedSession.token ? 'loading' : 'idle');
@@ -293,6 +312,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // Profil formulir perlu diselaraskan saat sesi pengguna berubah.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setProfileData(previousProfile => buildTeacherProfile(currentUser, previousProfile));
   }, [currentUser]);
 
@@ -346,42 +367,153 @@ export default function App() {
       if (showLoadingState) {
         setSyncState('loading');
         setBackendMessage(
-          students.length > 0
-            ? 'Menyegarkan data backend...'
-            : 'Mengambil siswa, kelas, dan guru dari backend...'
+          dashboardSummary || students.length > 0
+            ? 'Menyegarkan data dashboard...'
+            : 'Mengambil statistik, chart, dan tabel dari backend...'
         );
       }
 
+      const isPrincipal = currentUser?.role === 'principal';
+      const dailyRange = getDateRange(7);
+      const weeklyRange = getDateRange(28);
+
+      const dashboardRequests = [
+        getDashboardSummary(authToken),
+        getDashboardMetrics(authToken, { granularity: 'daily', ...dailyRange }),
+        getDashboardMetrics(authToken, { granularity: 'weekly', ...weeklyRange }),
+        getTopPerformers(authToken, 'classroom', { limit: 10, sort_by: 'focus' }),
+        // Backend membatasi limit top performer hingga 50 item.
+        getTopPerformers(authToken, 'student', { limit: 50, sort_by: 'focus' }),
+        getDashboardWarnings(authToken, 'student', { threshold: 60 }),
+      ];
+
+      const collectionRequests = isPrincipal
+        ? [
+            listCollection('/students', authToken, { page: 1, size: 100 }),
+            listCollection('/classrooms', authToken, { page: 1, size: 100 }),
+            listCollection('/teachers', authToken, { page: 1, size: 100 }),
+          ]
+        : [];
+
       try {
-        const [studentsResponse, classroomsResponse, teachersResponse] = await Promise.all([
-          listCollection('/students', authToken, { page: 1, size: 100 }),
-          listCollection('/classrooms', authToken, { page: 1, size: 100 }),
-          listCollection('/teachers', authToken, { page: 1, size: 100 }),
-        ]);
+        const [
+          summaryResult,
+          dailyMetricsResult,
+          weeklyMetricsResult,
+          topClassroomsResult,
+          topStudentsResult,
+          warningsResult,
+          ...collectionResults
+        ] = await Promise.allSettled([...dashboardRequests, ...collectionRequests]);
 
         if (!isActive) {
           return;
         }
 
-        const remoteStudents = studentsResponse.items;
-        const remoteClassrooms = classroomsResponse.items;
-        const remoteTeachers = teachersResponse.items;
+        const partialErrors = [];
 
-        const mergedStudents = mergeStudentsFromBackend(remoteStudents);
-        const mergedBoxes = mergeBoxesFromStudents(mergedStudents);
+        if (summaryResult.status === 'fulfilled') {
+          setDashboardSummary(summaryResult.value.data ?? null);
+        } else {
+          partialErrors.push('statistik dashboard');
+        }
 
-        setStudents(mergedStudents);
+        if (dailyMetricsResult.status === 'fulfilled') {
+          setDailyMetrics(Array.isArray(dailyMetricsResult.value.data) ? dailyMetricsResult.value.data : []);
+        } else {
+          partialErrors.push('grafik harian');
+        }
+
+        if (weeklyMetricsResult.status === 'fulfilled') {
+          setWeeklyMetrics(Array.isArray(weeklyMetricsResult.value.data) ? weeklyMetricsResult.value.data : []);
+        } else {
+          partialErrors.push('grafik mingguan');
+        }
+
+        if (topClassroomsResult.status === 'fulfilled') {
+          setTopClassroomRankings(Array.isArray(topClassroomsResult.value.data) ? topClassroomsResult.value.data : []);
+        } else {
+          partialErrors.push('peringkat kelas');
+        }
+
+        let performers = [];
+        if (topStudentsResult.status === 'fulfilled') {
+          performers = Array.isArray(topStudentsResult.value.data) ? topStudentsResult.value.data : [];
+          setTopStudentPerformers(performers);
+        } else {
+          partialErrors.push('data siswa');
+        }
+
+        if (warningsResult.status === 'fulfilled') {
+          const warningItems = Array.isArray(warningsResult.value.data) ? warningsResult.value.data : [];
+          setWarnings(mapStudentWarnings(warningItems));
+        } else {
+          partialErrors.push('peringatan');
+        }
+
+        let nextStudents = mapTopPerformersToStudents(performers);
+        let remoteClassrooms = topClassroomRankings;
+        let remoteTeachers = [];
+
+        if (isPrincipal) {
+          const [studentsResponseResult, classroomsResponseResult, teachersResponseResult] = collectionResults;
+
+          if (studentsResponseResult?.status === 'fulfilled') {
+            const remoteStudents = studentsResponseResult.value.items;
+            nextStudents = enrichStudentsWithPerformers(
+              mergeStudentsFromBackend(remoteStudents),
+              performers,
+            );
+          } else if (studentsResponseResult?.status === 'rejected') {
+            partialErrors.push('daftar siswa');
+          }
+
+          if (classroomsResponseResult?.status === 'fulfilled') {
+            remoteClassrooms = classroomsResponseResult.value.items;
+            setBackendClassrooms(remoteClassrooms);
+          } else if (classroomsResponseResult?.status === 'rejected') {
+            partialErrors.push('daftar kelas');
+          }
+
+          if (teachersResponseResult?.status === 'fulfilled') {
+            remoteTeachers = teachersResponseResult.value.items;
+            setBackendTeachers(remoteTeachers);
+          } else if (teachersResponseResult?.status === 'rejected') {
+            partialErrors.push('daftar guru');
+          }
+        } else {
+          setBackendClassrooms(
+            topClassroomsResult.status === 'fulfilled'
+              ? (Array.isArray(topClassroomsResult.value.data) ? topClassroomsResult.value.data : [])
+              : [],
+          );
+          setBackendTeachers([]);
+        }
+
+        const mergedBoxes = mergeBoxesFromStudents(nextStudents);
+
+        setStudents(nextStudents);
         setBoxes(mergedBoxes);
-        setLiveLog(mergedStudents.map((student) => ({
+        setLiveLog(nextStudents.map((student) => ({
           name: student.name,
           status: student.status,
         })));
-        setBackendClassrooms(remoteClassrooms);
-        setBackendTeachers(remoteTeachers);
         setLastSyncedAt(new Date());
+
+        if (summaryResult.status === 'rejected') {
+          throw summaryResult.reason;
+        }
+
+        const summaryData = summaryResult.value.data ?? {};
+        const totalStudents = summaryData.total_students ?? nextStudents.length;
+        const totalClassrooms = summaryData.total_classrooms ?? remoteClassrooms.length;
+        const totalTeachers = summaryData.total_teachers ?? remoteTeachers.length;
+
         setSyncState('connected');
         setBackendMessage(
-          `Sinkron ${studentsResponse.meta.total} siswa, ${classroomsResponse.meta.total} kelas, dan ${teachersResponse.meta.total} guru.`
+          partialErrors.length > 0
+            ? `Dashboard dimuat sebagian. Gagal mengambil: ${partialErrors.join(', ')}.`
+            : `Sinkron dashboard: ${totalStudents} siswa, ${totalClassrooms} kelas${isPrincipal ? `, ${totalTeachers} guru` : ''}.`
         );
       } catch (error) {
         if (!isActive) {
@@ -403,40 +535,46 @@ export default function App() {
       isActive = false;
       clearInterval(refreshIntervalId);
     };
-  }, [authToken]);
+  }, [authToken, currentUser?.role]);
 
   // Derived Metrics
-  const totalStudentsCount = students.length;
-  const focusedCount = students.filter(s => s.attention >= 70).length;
-  const unfocusedCount = students.filter(s => s.attention < 70).length;
+  const teacherMetrics = dashboardSummary?.metrics_summary ?? null;
+  const totalStudentsCount = dashboardSummary?.total_students ?? students.length;
+  const focusedCount = topStudentPerformers.filter(
+    (student) => Number(student.avg_focus_percentage ?? student.attention ?? 0) >= 70,
+  ).length;
+  const unfocusedCount = topStudentPerformers.filter(
+    (student) => Number(student.avg_focus_percentage ?? student.attention ?? 0) < 70,
+  ).length;
   const alertCount = warnings.length;
   const classroomFilterOptions = backendClassrooms.length > 0
     ? backendClassrooms.map((classroom) => classroom.name).filter(Boolean)
     : [];
-  const classStats = backendClassrooms.map((classroom) => ({
-    name: classroom.name,
-    value: students.filter((student) => student.class === classroom.name).length,
-    trend: 'up',
-  }));
-  const averageAttention = students.length > 0
-    ? (students.reduce((sum, student) => sum + Number(student.attention ?? 0), 0) / students.length).toFixed(1)
+  const classStats = mapClassroomRankings(topClassroomRankings);
+  const averageAttention = teacherMetrics?.avg_focus_percentage
+    ?? getAverageFocusFromMetrics(dailyMetrics)
+    ?? (students.length > 0
+      ? (students.reduce((sum, student) => sum + Number(student.attention ?? 0), 0) / students.length).toFixed(1)
+      : null);
+  const topStudentPerformer = topStudentPerformers[0] ?? null;
+  const topStudent = topStudentPerformer
+    ? {
+        name: topStudentPerformer.name,
+        attention: Number(topStudentPerformer.avg_focus_percentage ?? 0),
+      }
+    : students.reduce((bestStudent, student) => {
+        if (!bestStudent) {
+          return student;
+        }
+
+        return Number(student.attention ?? 0) > Number(bestStudent.attention ?? 0) ? student : bestStudent;
+      }, null);
+  const bestClassroom = classStats[0]
+    ? {
+        name: classStats[0].name,
+        studentCount: classStats[0].value,
+      }
     : null;
-  const topStudent = students.reduce((bestStudent, student) => {
-    if (!bestStudent) {
-      return student;
-    }
-
-    return Number(student.attention ?? 0) > Number(bestStudent.attention ?? 0) ? student : bestStudent;
-  }, null);
-  const bestClassroom = backendClassrooms.reduce((best, classroom) => {
-    const studentCount = students.filter((student) => student.class === classroom.name).length;
-
-    if (!best || studentCount > best.studentCount) {
-      return { name: classroom.name, studentCount };
-    }
-
-    return best;
-  }, null);
 
   const handleLoginSubmit = async (event) => {
     event.preventDefault();
@@ -473,6 +611,11 @@ export default function App() {
     clearStoredSession();
     setAuthToken('');
     setCurrentUser(null);
+    setDashboardSummary(null);
+    setDailyMetrics([]);
+    setWeeklyMetrics([]);
+    setTopClassroomRankings([]);
+    setTopStudentPerformers([]);
     setBackendClassrooms([]);
     setBackendTeachers([]);
     setSyncState('idle');
@@ -493,22 +636,7 @@ export default function App() {
   // Chart Data Configurations
   const emotionCategories = ['Senang', 'Netral', 'Bosan', 'Bingung', 'Mengantuk'];
 
-  const dailyAttentionData = {
-    labels: [],
-    datasets: [
-      {
-        label: 'Data Backend',
-        data: [],
-        fill: true,
-        borderColor: '#6366f1',
-        backgroundColor: 'rgba(99, 102, 241, 0.06)',
-        tension: 0.4,
-        borderWidth: 3,
-        pointBackgroundColor: '#6366f1',
-        pointHoverRadius: 6,
-      }
-    ]
-  };
+  const dailyAttentionData = buildDailyAttentionChart(dailyMetrics);
 
   const dailyAttentionOptions = {
     responsive: true,
@@ -564,25 +692,7 @@ export default function App() {
     }
   };
 
-  const weeklyAttentionData = {
-    labels: [],
-    datasets: [
-      {
-        label: 'Fokus',
-        data: [],
-        backgroundColor: '#6366f1',
-        borderRadius: 6,
-        barThickness: 16,
-      },
-      {
-        label: 'Tidak Fokus',
-        data: [],
-        backgroundColor: '#f59e0b',
-        borderRadius: 6,
-        barThickness: 16,
-      }
-    ]
-  };
+  const weeklyAttentionData = buildWeeklyAttentionChart(weeklyMetrics);
 
   const weeklyAttentionOptions = {
     responsive: true,
@@ -613,29 +723,7 @@ export default function App() {
     }
   };
 
-  const reportsDailyTrendData = {
-    labels: [],
-    datasets: [
-      {
-        label: 'Fokus %',
-        data: [],
-        borderColor: '#6366f1',
-        backgroundColor: 'transparent',
-        tension: 0.35,
-        borderWidth: 3,
-        pointBackgroundColor: '#6366f1',
-      },
-      {
-        label: 'Tidak Fokus %',
-        data: [],
-        borderColor: '#f59e0b',
-        backgroundColor: 'transparent',
-        tension: 0.35,
-        borderWidth: 3,
-        pointBackgroundColor: '#f59e0b',
-      }
-    ]
-  };
+  const reportsDailyTrendData = buildReportsDailyTrendChart(dailyMetrics);
 
   const reportsDailyTrendOptions = {
     responsive: true,
@@ -653,18 +741,7 @@ export default function App() {
     }
   };
 
-  const reportsClassComparisonData = {
-    labels: backendClassrooms.map((classroom) => classroom.name).filter(Boolean),
-    datasets: [
-      {
-        label: 'Jumlah Siswa',
-        data: backendClassrooms.map((classroom) => students.filter((student) => student.class === classroom.name).length),
-        backgroundColor: '#6366f1',
-        borderRadius: 8,
-        barThickness: 32,
-      }
-    ]
-  };
+  const reportsClassComparisonData = buildClassComparisonChart(topClassroomRankings);
 
   const reportsClassComparisonOptions = {
     responsive: true,
@@ -679,65 +756,14 @@ export default function App() {
     }
   };
 
-  const reportsEmotionTrendData = {
-    labels: [],
-    datasets: [
-      {
-        label: 'Senang',
-        data: [],
-        backgroundColor: '#10b981',
-        barThickness: 24,
-      },
-      {
-        label: 'Netral',
-        data: [],
-        backgroundColor: '#6366f1',
-        barThickness: 24,
-      },
-      {
-        label: 'Bosan',
-        data: [],
-        backgroundColor: '#f59e0b',
-        barThickness: 24,
-      },
-      {
-        label: 'Bingung',
-        data: [],
-        backgroundColor: '#f43f5e',
-        barThickness: 24,
-      },
-      {
-        label: 'Mengantuk',
-        data: [],
-        backgroundColor: '#8b5cf6',
-        barThickness: 24,
-      }
-    ]
-  };
-
-  const reportsEmotionTrendOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: 'bottom',
-        labels: { font: { family: 'Outfit', size: 11 }, boxWidth: 10, boxHeight: 10 }
-      },
-      tooltip: { backgroundColor: '#1e1b4b' }
-    },
-    scales: {
-      y: { stacked: true, min: 0, max: 100, grid: { color: '#f1f5f9' } },
-      x: { stacked: true, grid: { display: false } }
-    }
-  };
-
-  const hasStudents = students.length > 0;
-  const hasClassrooms = backendClassrooms.length > 0;
+  const hasDailyMetrics = dailyMetrics.length > 0;
+  const hasWeeklyMetrics = weeklyMetrics.length > 0;
   const hasWarnings = warnings.length > 0;
   const hasEmotionChartData = emotionDistributionData.datasets[0].data.some((value) => value > 0);
-  const hasClassChartData = reportsClassComparisonData.labels.length > 0;
-  const isInitialLoading = syncState === 'loading' && students.length === 0;
-  const isRefreshing = syncState === 'loading' && students.length > 0;
+  const hasClassChartData = reportsClassComparisonData.labels.length > 0
+    && reportsClassComparisonData.datasets[0].data.some((value) => value > 0);
+  const isInitialLoading = syncState === 'loading' && !dashboardSummary && students.length === 0;
+  const isRefreshing = syncState === 'loading' && (dashboardSummary || students.length > 0);
   const dashboardErrorMessage = syncState === 'error' ? backendMessage : '';
 
   // Student list search/filter logic
@@ -929,7 +955,7 @@ export default function App() {
                 <div className="metric-label">Total Siswa</div>
                 <div className="metric-value-container">
                   <div className="metric-value">{totalStudentsCount}</div>
-                  <div className="metric-change up">+2</div>
+                  <div className="metric-change up">{dashboardSummary ? 'Data backend' : 'Belum ada data'}</div>
                 </div>
               </div>
             </div>
@@ -942,7 +968,7 @@ export default function App() {
                 <div className="metric-label">Fokus</div>
                 <div className="metric-value-container">
                   <div className="metric-value">{focusedCount}</div>
-                  <div className="metric-change up">+6%</div>
+                  <div className="metric-change up">{averageAttention ? `${averageAttention}% rata-rata` : 'Belum ada data'}</div>
                 </div>
               </div>
             </div>
@@ -955,7 +981,7 @@ export default function App() {
                 <div className="metric-label">Tidak Fokus</div>
                 <div className="metric-value-container">
                   <div className="metric-value">{unfocusedCount}</div>
-                  <div className="metric-change down">-3%</div>
+                  <div className="metric-change down">{teacherMetrics ? `${teacherMetrics.total_using_phone} HP` : 'Data backend'}</div>
                 </div>
               </div>
             </div>
@@ -968,7 +994,7 @@ export default function App() {
                 <div className="metric-label">Peringatan</div>
                 <div className="metric-value-container">
                   <div className="metric-value">{alertCount}</div>
-                  <div className="metric-change up">+1</div>
+                  <div className="metric-change up">{hasWarnings ? 'Perlu perhatian' : 'Aman'}</div>
                 </div>
               </div>
             </div>
@@ -1004,6 +1030,8 @@ export default function App() {
                 <div style={{ height: '280px', position: 'relative', display: 'grid', placeItems: 'center' }}>
                   {isInitialLoading ? (
                     <div style={{ color: '#64748b', fontSize: '0.92rem' }}>Memuat grafik dari backend...</div>
+                  ) : hasDailyMetrics ? (
+                    <Line data={dailyAttentionData} options={dailyAttentionOptions} />
                   ) : (
                     <div style={{ color: '#64748b', fontSize: '0.92rem', textAlign: 'center' }}>
                       Belum ada data harian dari backend untuk grafik ini.
@@ -1059,9 +1087,15 @@ export default function App() {
                   </div>
                 </div>
                 <div style={{ height: '280px', position: 'relative', display: 'grid', placeItems: 'center' }}>
-                  <div style={{ color: '#64748b', fontSize: '0.92rem', textAlign: 'center' }}>
-                    Belum ada data mingguan dari backend.
-                  </div>
+                  {isInitialLoading ? (
+                    <div style={{ color: '#64748b', fontSize: '0.92rem' }}>Memuat grafik mingguan...</div>
+                  ) : hasWeeklyMetrics ? (
+                    <Bar data={weeklyAttentionData} options={weeklyAttentionOptions} />
+                  ) : (
+                    <div style={{ color: '#64748b', fontSize: '0.92rem', textAlign: 'center' }}>
+                      Belum ada data mingguan dari backend.
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1086,7 +1120,7 @@ export default function App() {
                             <div 
                               className="rank-progress-bar" 
                               style={{ 
-                                width: `${Math.min(100, item.value * 10)}%`,
+                                width: `${Math.min(100, item.value)}%`,
                                 backgroundColor: idx === 0 ? '#10b981' : (idx < 3 ? '#6366f1' : '#f59e0b')
                               }}
                             />
@@ -1400,9 +1434,13 @@ export default function App() {
                   </div>
                 </div>
                 <div style={{ height: '280px', position: 'relative', display: 'grid', placeItems: 'center' }}>
-                  <div style={{ color: '#64748b', fontSize: '0.92rem', textAlign: 'center' }}>
-                    Belum ada data tren harian dari backend.
-                  </div>
+                  {hasDailyMetrics ? (
+                    <Line data={reportsDailyTrendData} options={reportsDailyTrendOptions} />
+                  ) : (
+                    <div style={{ color: '#64748b', fontSize: '0.92rem', textAlign: 'center' }}>
+                      Belum ada data tren harian dari backend.
+                    </div>
+                  )}
                 </div>
               </div>
 
