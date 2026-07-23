@@ -200,8 +200,10 @@ export const checkBackendHealth = async () => {
 };
 
 export const listCollection = (resourcePath, token, params = {}) => {
+  const normalizedPath = resourcePath.endsWith('/') ? resourcePath : `${resourcePath}/`;
+
   return apiRequest({
-    path: resourcePath,
+    path: normalizedPath,
     method: 'GET',
     token,
     params,

@@ -1552,6 +1552,10 @@ export default function App() {
               </div>
             </div>
 
+            {studentError && (
+              <p role="alert" style={{ color: '#b91c1c', marginBottom: '12px' }}>{studentError}</p>
+            )}
+
             <div className="student-table-card">
               <table className="student-table">
                 <thead>
