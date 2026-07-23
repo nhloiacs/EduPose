@@ -38,10 +38,13 @@ echo [INFO] Memulai streaming RTSP...
 ffmpeg ^
 -f dshow ^
 -rtbufsize 512M ^
+-video_size 640x480 ^
+-framerate 30 ^
 -i video="FHD Camera" ^
 -c:v libx264 ^
 -preset ultrafast ^
 -tune zerolatency ^
+-pix_fmt yuv420p ^
 -f rtsp ^
 rtsp://localhost:8554/cam
 
