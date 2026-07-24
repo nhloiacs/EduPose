@@ -1,4 +1,5 @@
 import { LogIn, ShieldCheck, Sparkles, UserRound } from 'lucide-react';
+import logoEdupose from '../assets/logo-edupose.png';
 
 export default function LoginPage({
   loginForm,
@@ -13,7 +14,7 @@ export default function LoginPage({
       <div className="auth-shell">
         <section className="auth-visual">
           <div className="auth-badge">
-            <Sparkles size={14} />
+            <img className="auth-logo-image" src={logoEdupose} alt="EduPose logo" />
             <span>EduPose</span>
           </div>
 

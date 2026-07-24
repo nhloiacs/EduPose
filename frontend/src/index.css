@@ -116,6 +116,14 @@ body {
   font-weight: 700;
 }
 
+.auth-logo-image {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
 .auth-visual h1 {
   font-size: clamp(2.2rem, 4vw, 3.8rem);
   line-height: 1;
@@ -335,6 +343,15 @@ body {
   justify-content: center;
   gap: 12px;
   width: 100%;
+}
+
+.sidebar-logo-image {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  background: #fff;
 }
 
 .logo-text {

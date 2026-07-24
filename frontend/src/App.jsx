@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { Line, Bar } from 'react-chartjs-2';
 import { Doughnut } from 'react-chartjs-2';
+import logoEdupose from './assets/logo-edupose.png';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -1386,7 +1387,11 @@ export default function App() {
       {/* Sidebar Navigation */}
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <Award size={26} />
+          <img
+            className="sidebar-logo-image"
+            src={logoEdupose}
+            alt="EduPose logo"
+          />
           <span className="logo-text">EduPose</span>
         </div>
         
@@ -1517,8 +1522,7 @@ export default function App() {
                   {connectionState === 'connected' && 'Terhubung'}
                   {connectionState === 'connecting' && 'Menghubungkan'}
                   {connectionState === 'error' && 'Gagal konek'}
-                  {connectionState === 'closed' && 'Terputus'}
-                  {connectionState === 'closed' && !WEB_SOCKET_URL && 'Belum terhubung'}
+                  {connectionState === 'closed' && !WEB_SOCKET_URL && ' Belum terhubung'}
                 </strong>
               </div>
             </div>
