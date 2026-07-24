@@ -11,6 +11,7 @@ import {
   Clock, 
   Award, 
   Calendar,
+  BookOpen,
   CheckCircle,
   XCircle,
   AlertCircle,
@@ -58,7 +59,12 @@ import {
   getDashboardWarnings,
   getDateRange,
   getCurrentTeacherProfile,
+  getClassroomDetail,
   getClassroomOptions,
+  getCameraOptions,
+  createClassroomSession,
+  getClassroomSessions,
+  getClassroomStudents,
   getStudentDetail,
   getTopPerformers,
   listCollection,
@@ -121,6 +127,18 @@ const formatAlertTime = (timestamp) => {
   });
 };
 
+const formatDateTimeLabel = (timestamp) => {
+  if (!timestamp) return '-';
+
+  const parsedTime = new Date(timestamp);
+  if (Number.isNaN(parsedTime.getTime())) return '-';
+
+  return parsedTime.toLocaleString('id-ID', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+};
+
 const normalizeWebSocketWarning = (payload) => {
   if (!payload || typeof payload !== 'object') {
     return {
@@ -155,6 +173,7 @@ export default function App() {
   const [weeklyMetrics, setWeeklyMetrics] = useState([]);
   const [topClassroomRankings, setTopClassroomRankings] = useState([]);
   const [topStudentPerformers, setTopStudentPerformers] = useState([]);
+  const [backendSessions, setBackendSessions] = useState([]);
   const [authToken, setAuthToken] = useState(storedSession.token);
   const [currentUser, setCurrentUser] = useState(storedSession.user);
   const [syncState, setSyncState] = useState(storedSession.token ? 'loading' : 'idle');
@@ -213,6 +232,16 @@ export default function App() {
   const [isStudentEditorOpen, setIsStudentEditorOpen] = useState(false);
   const [studentFormMessage, setStudentFormMessage] = useState('');
   const [classroomOptions, setClassroomOptions] = useState([]);
+  const [cameraOptions, setCameraOptions] = useState([]);
+  const [sessionForm, setSessionForm] = useState({ classroom_id: '', camera_id: '', subject: '' });
+  const [isSessionFormOpen, setIsSessionFormOpen] = useState(false);
+  const [sessionFormError, setSessionFormError] = useState('');
+  const [sessionFormMessage, setSessionFormMessage] = useState('');
+  const [isSessionSaving, setIsSessionSaving] = useState(false);
+  const [sessionPage, setSessionPage] = useState(1);
+  const [sessionMeta, setSessionMeta] = useState({ total: 0, page: 1, size: 10 });
+  const [sessionLoading, setSessionLoading] = useState(false);
+  const [sessionError, setSessionError] = useState('');
   const [classroomPage, setClassroomPage] = useState(1);
   const [classroomList, setClassroomList] = useState([]);
   const [classroomMeta, setClassroomMeta] = useState({ total: 0, page: 1, size: 10 });
@@ -221,6 +250,9 @@ export default function App() {
   const [classroomForm, setClassroomForm] = useState({ name: '' });
   const [editingClassroomId, setEditingClassroomId] = useState(null);
   const [isClassroomFormOpen, setIsClassroomFormOpen] = useState(false);
+  const [classroomDetail, setClassroomDetail] = useState(null);
+  const [classroomDetailLoading, setClassroomDetailLoading] = useState(false);
+  const [classroomDetailError, setClassroomDetailError] = useState('');
 
   useEffect(() => {
     setApiAuthToken(authToken);
@@ -369,6 +401,13 @@ export default function App() {
   }, [currentUser]);
 
   useEffect(() => {
+    // Jika role teacher dan tab sedang menampilkan siswa, alihkan ke laporan
+    if (currentUser?.role === 'teacher' && activeTab === 'students') {
+      setActiveTab('reports');
+    }
+  }, [currentUser?.role, activeTab]);
+
+  useEffect(() => {
     let isActive = true;
 
     const loadCurrentProfile = async () => {
@@ -400,6 +439,9 @@ export default function App() {
     getClassroomOptions(authToken)
       .then((response) => setClassroomOptions(Array.isArray(response.data) ? response.data : []))
       .catch(() => setClassroomOptions([]));
+    getCameraOptions(authToken)
+      .then((response) => setCameraOptions(Array.isArray(response.data) ? response.data : []))
+      .catch(() => setCameraOptions([]));
   }, [authToken]);
 
   useEffect(() => {
@@ -437,16 +479,93 @@ export default function App() {
   }, [activeTab, authToken, searchQuery]);
 
   useEffect(() => {
+    if (!authToken || activeTab !== 'sessions') return undefined;
+    let isActive = true;
+    const loadSessions = async () => {
+      setSessionLoading(true);
+      setSessionError('');
+      try {
+        const response = await listCollection('/classroom-sessions', authToken, { page: sessionPage, size: 10, search: searchQuery.trim() });
+        if (isActive) {
+          setBackendSessions(response.items);
+          setSessionMeta(response.meta);
+        }
+      } catch (error) {
+        if (isActive) setSessionError(error instanceof Error ? error.message : 'Gagal mengambil daftar sesi.');
+      } finally {
+        if (isActive) setSessionLoading(false);
+      }
+    };
+    loadSessions();
+    return () => { isActive = false; };
+  }, [activeTab, authToken, sessionPage, searchQuery]);
+
+  useEffect(() => {
     if (!authToken || activeTab !== 'students') return undefined;
     let isActive = true;
     const timer = setTimeout(async () => {
       setStudentLoading(true);
       setStudentError('');
       try {
-        const response = await listCollection('/students', authToken, { page: studentPage, size: 10, search: searchQuery.trim() });
-        if (isActive) {
-          setStudentList(mergeStudentsFromBackend(response.items));
-          setStudentMeta(response.meta);
+        let response = null;
+
+        if (currentUser?.role === 'principal') {
+          response = await listCollection('/students', authToken, { page: studentPage, size: 10, search: searchQuery.trim() });
+          if (isActive) {
+            setStudentList(mergeStudentsFromBackend(response.items));
+            setStudentMeta(response.meta);
+          }
+        } else {
+          // For teacher: determine classrooms the teacher actually teaches by
+          // fetching their sessions, then retrieving session details to get classroom IDs.
+          const sessionsList = await listCollection('/classroom-sessions', authToken, { page: 1, size: 100 });
+          const sessionItems = Array.isArray(sessionsList.items) ? sessionsList.items : [];
+
+          // fetch session details in parallel to obtain classroom_id
+          const detailPromises = sessionItems.map((s) => getClassroomSessionDetail(s.id, authToken).catch(() => null));
+          const detailResults = await Promise.all(detailPromises);
+          const classroomIdSet = new Set();
+          detailResults.forEach((res) => {
+            if (res && res.data && res.data.classroom_id) {
+              classroomIdSet.add(String(res.data.classroom_id));
+            }
+          });
+
+          const classroomIds = Array.from(classroomIdSet);
+
+          if (classroomIds.length === 0) {
+            if (isActive) {
+              setStudentList([]);
+              setStudentMeta({ total: 0, page: 1, size: 10 });
+            }
+          } else {
+            // fetch students for each classroom (first page) and merge
+            const studentsPromises = classroomIds.map((cid) => getClassroomStudents(cid, authToken, { page: studentPage, size: 10, search: searchQuery.trim() }).catch(() => null));
+            const studentsResults = await Promise.all(studentsPromises);
+            const merged = [];
+            let totalCount = 0;
+            studentsResults.forEach((r) => {
+              if (r && Array.isArray(r.items)) {
+                merged.push(...r.items);
+                totalCount += Number(r.meta?.total ?? r.items.length ?? 0);
+              }
+            });
+
+            // deduplicate students by id
+            const seen = new Set();
+            const uniqueStudents = merged.filter((st) => {
+              const sid = st.id ?? st.student_id ?? null;
+              if (!sid) return false;
+              if (seen.has(String(sid))) return false;
+              seen.add(String(sid));
+              return true;
+            });
+
+            if (isActive) {
+              setStudentList(mergeStudentsFromBackend(uniqueStudents));
+              setStudentMeta({ total: totalCount, page: studentPage, size: 10 });
+            }
+          }
         }
       } catch (error) {
         if (isActive) setStudentError(error instanceof Error ? error.message : 'Gagal mengambil daftar siswa.');
@@ -515,6 +634,7 @@ export default function App() {
 
       const dailyRange = getDateRange(7);
       const weeklyRange = getDateRange(28);
+      const isPrincipalUser = currentUser?.role === 'principal';
 
       const dashboardRequests = [
         getDashboardSummary(authToken),
@@ -526,11 +646,17 @@ export default function App() {
         getDashboardWarnings(authToken, 'student', { threshold: 60 }),
       ];
 
-      const collectionRequests = [
-        listCollection('/students', authToken, { page: 1, size: 100 }),
-        listCollection('/classrooms', authToken, { page: 1, size: 100 }),
-        listCollection('/teachers', authToken, { page: 1, size: 100 }),
+      const sessionRequests = [
+        listCollection('/classroom-sessions', authToken, { page: 1, size: 10 }),
       ];
+
+      const collectionRequests = isPrincipalUser
+        ? [
+            listCollection('/students', authToken, { page: 1, size: 100 }),
+            listCollection('/classrooms', authToken, { page: 1, size: 100 }),
+            listCollection('/teachers', authToken, { page: 1, size: 100 }),
+          ]
+        : [];
 
       try {
         const [
@@ -540,8 +666,9 @@ export default function App() {
           topClassroomsResult,
           topStudentsResult,
           warningsResult,
+          sessionsResult,
           ...collectionResults
-        ] = await Promise.allSettled([...dashboardRequests, ...collectionRequests]);
+        ] = await Promise.allSettled([...dashboardRequests, ...sessionRequests, ...collectionRequests]);
 
         if (!isActive) {
           return;
@@ -588,6 +715,12 @@ export default function App() {
           partialErrors.push('peringatan');
         }
 
+        if (sessionsResult.status === 'fulfilled') {
+          setBackendSessions(Array.isArray(sessionsResult.value.items) ? sessionsResult.value.items : []);
+        } else {
+          partialErrors.push('daftar sesi');
+        }
+
         let nextStudents = mapTopPerformersToStudents(performers);
         let remoteClassrooms = topClassroomRankings;
         let remoteTeachers = [];
@@ -628,11 +761,9 @@ export default function App() {
         })));
         setLastSyncedAt(new Date());
 
-        if (summaryResult.status === 'rejected') {
-          throw summaryResult.reason;
-        }
-
-        const summaryData = summaryResult.value.data ?? {};
+        const summaryData = summaryResult.status === 'fulfilled'
+          ? (summaryResult.value.data ?? {})
+          : {};
         const totalStudents = summaryData.total_students ?? nextStudents.length;
         const totalClassrooms = summaryData.total_classrooms ?? remoteClassrooms.length;
         const totalTeachers = summaryData.total_teachers ?? remoteTeachers.length;
@@ -744,8 +875,12 @@ export default function App() {
     setWeeklyMetrics([]);
     setTopClassroomRankings([]);
     setTopStudentPerformers([]);
+    setBackendSessions([]);
     setBackendClassrooms([]);
     setBackendTeachers([]);
+    setClassroomDetail(null);
+    setClassroomDetailLoading(false);
+    setClassroomDetailError('');
     setSyncState('idle');
     setBackendMessage('Belum login ke backend');
     setStudents([]);
@@ -922,6 +1057,61 @@ export default function App() {
     }
   };
 
+  const openClassroomDetail = async (classroom) => {
+    setActiveTab('classroom-detail');
+    setClassroomDetailError('');
+    setClassroomDetailLoading(true);
+    setSessionForm((previous) => ({ ...previous, classroom_id: classroom.id }));
+    setClassroomDetail({ classroom, sessions: [], students: [] });
+
+    try {
+      const [detailResult, sessionsResult, studentsResult] = await Promise.allSettled([
+        getClassroomDetail(classroom.id, authToken),
+        getClassroomSessions(classroom.id, authToken, { page: 1, size: 10 }),
+        getClassroomStudents(classroom.id, authToken, { page: 1, size: 10 }),
+      ]);
+
+      const nextClassroom = detailResult.status === 'fulfilled' && detailResult.value.data
+        ? detailResult.value.data
+        : classroom;
+      const rawSessions = sessionsResult.status === 'fulfilled'
+        ? (Array.isArray(sessionsResult.value.items) ? sessionsResult.value.items : [])
+        : [];
+
+      const nextSessions = rawSessions.map((s) => ({
+        id: s.id ?? s.session_id ?? s.sessionId,
+        subject: s.subject ?? s.title ?? '',
+        start_time: s.start_time ?? s.startTime ?? null,
+        end_time: s.end_time ?? s.endTime ?? null,
+        teacher_name: s.teacher_name ?? s.teacherName ?? s.teacher ?? null,
+        status: s.status ?? null,
+        metrics: s.metrics ?? null,
+        ...s,
+      }));
+      const nextStudents = studentsResult.status === 'fulfilled'
+        ? (Array.isArray(studentsResult.value.items) ? studentsResult.value.items : [])
+        : [];
+
+      setClassroomDetail({
+        classroom: nextClassroom,
+        sessions: nextSessions,
+        students: nextStudents,
+      });
+
+      const failedParts = [];
+      if (detailResult.status === 'rejected') failedParts.push('detail');
+      if (sessionsResult.status === 'rejected') failedParts.push('sesi');
+      if (studentsResult.status === 'rejected') failedParts.push('siswa');
+      if (failedParts.length > 0) {
+        setClassroomDetailError(`Sebagian data classroom gagal dimuat: ${failedParts.join(', ')}.`);
+      }
+    } catch (error) {
+      setClassroomDetailError(error instanceof Error ? error.message : 'Gagal mengambil detail classroom.');
+    } finally {
+      setClassroomDetailLoading(false);
+    }
+  };
+
   const startEditClassroom = (classroom) => {
     setEditingClassroomId(classroom.id);
     setClassroomForm({ name: classroom.name || '' });
@@ -940,6 +1130,71 @@ export default function App() {
       await reloadClassroomOptions();
     } catch (error) {
       setClassroomError(error instanceof Error ? error.message : 'Gagal menghapus kelas. Pastikan kelas tidak masih digunakan siswa.');
+    }
+  };
+
+  const resetSessionForm = () => {
+    setSessionForm({ classroom_id: '', camera_id: '', subject: '' });
+    setSessionFormError('');
+    setSessionFormMessage('');
+    setIsSessionFormOpen(false);
+  };
+
+  const openSessionForm = () => {
+    resetSessionForm();
+    setIsSessionFormOpen(true);
+  };
+
+  const handleSessionSubmit = async (event) => {
+    event.preventDefault();
+    setSessionFormError('');
+    setSessionFormMessage('');
+
+    if (!sessionForm.classroom_id || !sessionForm.camera_id) {
+      setSessionFormError('Kelas dan kamera wajib dipilih untuk membuat sesi.');
+      return;
+    }
+
+    setIsSessionSaving(true);
+    try {
+      const payload = {
+        classroom_id: sessionForm.classroom_id,
+        camera_id: sessionForm.camera_id,
+        subject: sessionForm.subject || ''
+      };
+      const classroomId = sessionForm.classroom_id;
+      await createClassroomSession(payload, authToken);
+      setSessionFormMessage('Sesi berhasil dibuat.');
+      resetSessionForm();
+      setSessionPage(1);
+      const [listResponse, classroomSessionsResponse] = await Promise.all([
+        listCollection('/classroom-sessions', authToken, { page: 1, size: 10, search: searchQuery.trim() }),
+        getClassroomSessions(classroomId, authToken, { page: 1, size: 10 }),
+      ]);
+      setBackendSessions(listResponse.items);
+      setSessionMeta(listResponse.meta);
+      if (classroomDetail?.classroom?.id === classroomId) {
+        const rawClassroomSessions = Array.isArray(classroomSessionsResponse.items) ? classroomSessionsResponse.items : [];
+        const mapped = rawClassroomSessions.map((s) => ({
+          id: s.id ?? s.session_id ?? s.sessionId,
+          subject: s.subject ?? s.title ?? '',
+          start_time: s.start_time ?? s.startTime ?? null,
+          end_time: s.end_time ?? s.endTime ?? null,
+          teacher_name: s.teacher_name ?? s.teacherName ?? s.teacher ?? null,
+          status: s.status ?? null,
+          metrics: s.metrics ?? null,
+          ...s,
+        }));
+
+        setClassroomDetail((previous) => previous ? {
+          ...previous,
+          sessions: mapped,
+        } : previous);
+      }
+    } catch (error) {
+      setSessionFormError(error instanceof Error ? error.message : 'Gagal membuat sesi.');
+    } finally {
+      setIsSessionSaving(false);
     }
   };
 
@@ -1084,7 +1339,9 @@ export default function App() {
     const matchesStatus = statusFilter === 'All' ? true : student.status === statusFilter;
     return matchesSearch && matchesClass && matchesStatus;
   });
-  const displayedStudents = (activeTab === 'students' ? studentList : filteredStudents).filter((student) => {
+  const shouldUseFiltered = searchQuery.trim() !== '' || classFilter !== 'All' || statusFilter !== 'All';
+  const displayedStudentsSource = (activeTab === 'students' && !shouldUseFiltered) ? studentList : filteredStudents;
+  const displayedStudents = displayedStudentsSource.filter((student) => {
     const matchesClass = classFilter === 'All' || student.class === classFilter;
     const matchesStatus = statusFilter === 'All' || student.status === statusFilter;
     return matchesClass && matchesStatus;
@@ -1111,7 +1368,6 @@ export default function App() {
     : activeTab === 'classrooms'
       ? 'Cari nama classroom...'
       : 'Cari teacher, NIP, atau email...';
-
   if (!authToken) {
     return (
       <LoginPage
@@ -1148,47 +1404,51 @@ export default function App() {
             onClick={() => setActiveTab('live')}
           >
             <Video size={20} />
-            <span className="menu-label">Live Camera</span>
+            <span className="menu-label">Live</span>
           </button>
 
-          <button 
-            className={`menu-item ${activeTab === 'students' ? 'active' : ''}`}
-            onClick={() => setActiveTab('students')}
-          >
-            <Users size={20} />
-            <span className="menu-label">Siswa</span>
-          </button>
+          {currentUser?.role === 'principal' && (
+            <button
+              className={`menu-item ${activeTab === 'teachers' ? 'active' : ''}`}
+              onClick={() => setActiveTab('teachers')}
+            >
+              <User size={20} />
+              <span className="menu-label">Guru</span>
+            </button>
+          )}
+
+          {currentUser?.role === 'teacher' ? (
+            <button
+              className={`menu-item ${activeTab === 'reports' ? 'active' : ''}`}
+              onClick={() => setActiveTab('reports')}
+            >
+              <BarChart3 size={20} />
+              <span className="menu-label">Laporan</span>
+            </button>
+          ) : (
+            <button
+              className={`menu-item ${activeTab === 'students' ? 'active' : ''}`}
+              onClick={() => setActiveTab('students')}
+            >
+              <Users size={20} />
+              <span className="menu-label">Siswa</span>
+            </button>
+          )}
 
           <button
             className={`menu-item ${activeTab === 'classrooms' ? 'active' : ''}`}
             onClick={() => setActiveTab('classrooms')}
           >
-            <Users size={20} />
-            <span className="menu-label">Classroom</span>
-          </button>
-
-          <button 
-            className={`menu-item ${activeTab === 'reports' ? 'active' : ''}`}
-            onClick={() => setActiveTab('reports')}
-          >
-            <BarChart3 size={20} />
-            <span className="menu-label">Laporan</span>
+            <BookOpen size={20} />
+            <span className="menu-label">Kelas</span>
           </button>
 
           <button 
             className={`menu-item ${activeTab === 'profile' ? 'active' : ''}`}
             onClick={() => setActiveTab('profile')}
           >
-            <User size={20} />
-            <span className="menu-label">Profil Guru</span>
-          </button>
-
-          <button
-            className={`menu-item ${activeTab === 'teachers' ? 'active' : ''}`}
-            onClick={() => setActiveTab('teachers')}
-          >
-            <User size={20} />
-            <span className="menu-label">Teacher</span>
+            <Settings size={20} />
+            <span className="menu-label">Profil</span>
           </button>
         </nav>
 
@@ -1210,19 +1470,21 @@ export default function App() {
         <header className="header">
           <div className="welcome-section">
             <h1>
-              {activeTab === 'dashboard' && 'Dashboard'}
+                {activeTab === 'dashboard' && 'Dashboard'}
               {activeTab === 'live' && 'Live Camera Feed'}
               {activeTab === 'students' && 'Data Siswa'}
-              {activeTab === 'classrooms' && 'Data Classroom'}
+              {activeTab === 'classrooms' && 'Data Kelas'}
+              {activeTab === 'sessions' && 'Riwayat Sesi'}
               {activeTab === 'reports' && 'Laporan Atensi & Emosi'}
               {activeTab === 'profile' && 'Profil & Pengaturan Sistem'}
-              {activeTab === 'teachers' && 'Manajemen Teacher'}
+              {activeTab === 'teachers' && 'Manajemen Guru'}
             </h1>
             <p>
               {activeTab === 'dashboard' && 'Selamat datang! Berikut ringkasan data atensi siswa hari ini.'}
               {activeTab === 'live' && 'Pemantauan kelas real-time dengan model deteksi AI Raspberry Pi.'}
               {activeTab === 'students' && 'Daftar siswa beserta metrik atensi dan emosi real-time.'}
               {activeTab === 'classrooms' && 'Kelola kelas dan sinkronisasi pilihan kelas untuk siswa.'}
+              {activeTab === 'classroom-detail' && 'Detail kelas berisi sesi dan daftar siswa.'}
               {activeTab === 'reports' && 'Analisis tren atensi dan distribusi emosi siswa secara historis.'}
               {activeTab === 'profile' && 'Profil teacher tersinkron dengan backend serta pengaturan sistem.'}
               {activeTab === 'teachers' && 'Tambah dan ubah data teacher.'}
@@ -1241,6 +1503,7 @@ export default function App() {
                     setSearchQuery(e.target.value);
                     setStudentPage(1);
                     setClassroomPage(1);
+                    setSessionPage(1);
                   }}
                 />
               </div>
@@ -1256,6 +1519,18 @@ export default function App() {
                   {connectionState === 'error' && 'Gagal konek'}
                   {connectionState === 'closed' && 'Terputus'}
                   {connectionState === 'closed' && !WEB_SOCKET_URL && 'Belum terhubung'}
+                </strong>
+              </div>
+            </div>
+            <div style={{ width: 12 }} />
+            <div className={`connection-status connection-${backendHealthState === 'online' ? 'connected' : backendHealthState === 'checking' ? 'connecting' : 'error'}`}>
+              <span className="connection-dot" />
+              <div className="connection-copy">
+                <span className="connection-label">Backend API</span>
+                <strong>
+                  {backendHealthState === 'online' && 'Backend aktif'}
+                  {backendHealthState === 'checking' && 'Memeriksa'}
+                  {backendHealthState === 'offline' && 'Backend tidak aktif'}
                 </strong>
               </div>
             </div>
@@ -1376,19 +1651,8 @@ export default function App() {
                     <h2 className="card-title">Tren Atensi Harian</h2>
                     <p className="card-subtitle">Grafik rata-rata tingkat kefokusan siswa sepanjang hari ini</p>
 
-              <div className={`connection-status connection-${backendHealthState === 'online' ? 'connected' : backendHealthState === 'checking' ? 'connecting' : 'error'}`}>
-                <span className="connection-dot" />
-                <div className="connection-copy">
-                  <span className="connection-label">Backend API</span>
-                  <strong>
-                    {backendHealthState === 'online' && 'Backend aktif'}
-                    {backendHealthState === 'checking' && 'Memeriksa'}
-                    {backendHealthState === 'offline' && 'Backend tidak aktif'}
-                  </strong>
-                </div>
-              </div>
+              {/* backend status moved to header-actions */}
                   </div>
-                  <p className="card-subtitle" style={{ marginTop: '6px' }}>{backendHealthMessage}</p>
                 </div>
                 <div style={{ height: '280px', position: 'relative', display: 'grid', placeItems: 'center' }}>
                   {isInitialLoading ? (
@@ -1609,7 +1873,7 @@ export default function App() {
                 <select 
                   className="filter-select"
                   value={classFilter}
-                  onChange={(e) => setClassFilter(e.target.value)}
+                  onChange={(e) => { setClassFilter(e.target.value); setStudentPage(1); }}
                 >
                   <option value="All">Semua Kelas</option>
                   {classroomFilterOptions.map((classroomName) => (
@@ -1744,7 +2008,7 @@ export default function App() {
                 <thead><tr><th>#</th><th>Nama Kelas</th><th style={{ textAlign: 'right' }}>Aksi</th></tr></thead>
                 <tbody>
                   {classroomLoading ? <tr><td colSpan="3" style={{ textAlign: 'center', padding: '32px' }}>Memuat classroom...</td></tr>
-                    : classroomListToDisplay.length ? classroomListToDisplay.map((classroom, index) => <tr key={classroom.id}><td>{(classroomMeta.page - 1) * classroomMeta.size + index + 1}</td><td>{classroom.name}</td><td style={{ textAlign: 'right' }}><div style={{ display: 'inline-flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}><ActionButton variant="edit" icon={PencilLine} onClick={() => startEditClassroom(classroom)}>Ubah</ActionButton><ActionButton variant="delete" icon={Trash2} onClick={() => handleDeleteClassroom(classroom)}>Hapus</ActionButton></div></td></tr>)
+                    : classroomListToDisplay.length ? classroomListToDisplay.map((classroom, index) => <tr key={classroom.id}><td>{(classroomMeta.page - 1) * classroomMeta.size + index + 1}</td><td>{classroom.name}</td><td style={{ textAlign: 'right' }}><div style={{ display: 'inline-flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}><ActionButton variant="detail" icon={Eye} onClick={() => openClassroomDetail(classroom)}>Detail</ActionButton><ActionButton variant="edit" icon={PencilLine} onClick={() => startEditClassroom(classroom)}>Ubah</ActionButton><ActionButton variant="delete" icon={Trash2} onClick={() => handleDeleteClassroom(classroom)}>Hapus</ActionButton></div></td></tr>)
                     : <tr><td colSpan="3" style={{ textAlign: 'center', padding: '32px' }}>{searchQuery.trim() ? 'Tidak ada classroom yang cocok dengan pencarian.' : 'Belum ada classroom.'}</td></tr>}
                 </tbody>
               </table>
@@ -1753,6 +2017,69 @@ export default function App() {
               <button type="button" className="pagination-button" disabled={classroomPage <= 1} onClick={() => setClassroomPage((page) => page - 1)}>Sebelumnya</button>
               <span className="pagination-label">Halaman {classroomMeta.page} dari {Math.max(1, Math.ceil(classroomMeta.total / classroomMeta.size))}</span>
               <button type="button" className="pagination-button" disabled={classroomPage >= Math.max(1, Math.ceil(classroomMeta.total / classroomMeta.size))} onClick={() => setClassroomPage((page) => page + 1)}>Berikutnya</button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'sessions' && (
+          <div className="view-panel">
+            <div className="table-header-section">
+              <h2 className="card-title" style={{ fontSize: '1.2rem' }}>Daftar Sesi</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <span style={{ color: '#64748b' }}>{sessionMeta.total} sesi tersinkron</span>
+                {currentUser?.role === 'teacher' && (
+                  <button type="button" className="btn-primary" onClick={openSessionForm}>
+                    <Plus size={18} />
+                    <span>Buat Sesi</span>
+                  </button>
+                )}
+              </div>
+            </div>
+            {sessionError && <p role="alert" style={{ color: '#b91c1c' }}>{sessionError}</p>}
+            <div className="student-table-card">
+              <table className="student-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Subject</th>
+                    <th>Kelas</th>
+                    <th>Guru</th>
+                    <th>Kamera</th>
+                    <th>Mulai</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sessionLoading ? (
+                    <tr>
+                      <td colSpan={7} style={{ textAlign: 'center', padding: '32px' }}>Memuat sesi...</td>
+                    </tr>
+                  ) : backendSessions.length > 0 ? (
+                    backendSessions.map((session, index) => (
+                      <tr key={session.id}>
+                        <td>{(sessionMeta.page - 1) * sessionMeta.size + index + 1}</td>
+                        <td>{session.subject || 'Tanpa judul'}</td>
+                        <td>{session.classroom_name || '-'}</td>
+                        <td>{session.teacher_name || '-'}</td>
+                        <td>{session.camera_name || '-'}</td>
+                        <td>{formatDateTimeLabel(session.start_time)}</td>
+                        <td><span className={`badge badge-status ${session.status === 'ended' ? 'badge-tidak-aktif' : 'badge-aktif'}`}>{session.status}</span></td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={7} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
+                        {searchQuery.trim() ? 'Tidak ada sesi yang cocok dengan pencarian.' : 'Belum ada sesi.'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="pagination-row">
+              <button type="button" className="pagination-button" disabled={sessionPage <= 1} onClick={() => setSessionPage((page) => page - 1)}>Sebelumnya</button>
+              <span className="pagination-label">Halaman {sessionMeta.page} dari {Math.max(1, Math.ceil(sessionMeta.total / sessionMeta.size))}</span>
+              <button type="button" className="pagination-button" disabled={sessionPage >= Math.max(1, Math.ceil(sessionMeta.total / sessionMeta.size))} onClick={() => setSessionPage((page) => page + 1)}>Berikutnya</button>
             </div>
           </div>
         )}
@@ -1935,7 +2262,7 @@ export default function App() {
                   <span>{profileData.avatarInitials}</span>
                 </div>
                 <h3 className="profile-name">{profileData.name}</h3>
-                <span className="profile-role">Guru & Operator AI</span>
+                <span className="profile-role">{currentUser?.role === 'principal' ? 'Kepala Sekolah' : currentUser?.role === 'teacher' ? 'Guru' : (profileData.role || '')}</span>
                 
                 <div className="profile-stats-mini">
                   <div className="mini-stat-box">
@@ -2342,6 +2669,145 @@ export default function App() {
                   <button type="button" className="modal-cancel-btn" onClick={resetClassroomForm}>Batal</button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {isSessionFormOpen && (
+          <div className="modal-backdrop" role="presentation" onClick={resetSessionForm}>
+            <div className="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-labelledby="session-form-modal-title" onClick={(event) => event.stopPropagation()}>
+              <div className="modal-header">
+                <div>
+                  <h3 id="session-form-modal-title" className="modal-title">Buat Sesi Ajar</h3>
+                  <p className="modal-subtitle">Teacher hanya dapat membuat sesi ajar yang terhubung ke kelas dan kamera.</p>
+                </div>
+                <button type="button" className="modal-close" aria-label="Tutup form sesi" onClick={resetSessionForm}>
+                  <XCircle size={20} />
+                </button>
+              </div>
+              {sessionFormError && <p role="alert" style={{ color: '#b91c1c', marginBottom: '16px' }}>{sessionFormError}</p>}
+              {sessionFormMessage && <p style={{ color: '#047857', marginBottom: '16px' }}>{sessionFormMessage}</p>}
+              <form onSubmit={handleSessionSubmit}>
+                <div className="profile-fields-grid">
+                  <div className="profile-field-group">
+                    <label>Kelas</label>
+                    <select required value={sessionForm.classroom_id} onChange={(e) => setSessionForm({ ...sessionForm, classroom_id: e.target.value })}>
+                      <option value="">Pilih kelas</option>
+                      {classroomOptions.map((classroom) => (
+                        <option key={classroom.id} value={classroom.id}>{classroom.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="profile-field-group">
+                    <label>Kamera</label>
+                    <select required value={sessionForm.camera_id} onChange={(e) => setSessionForm({ ...sessionForm, camera_id: e.target.value })}>
+                      <option value="">Pilih kamera</option>
+                      {cameraOptions.map((camera) => (
+                        <option key={camera.id} value={camera.id}>{camera.name || camera.id}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="profile-field-group" style={{ gridColumn: 'span 2' }}>
+                    <label>Topik / Subject</label>
+                    <input value={sessionForm.subject} onChange={(e) => setSessionForm({ ...sessionForm, subject: e.target.value })} placeholder="Contoh: Matematika, Fisika, etc." />
+                  </div>
+                </div>
+                <div className="modal-actions">
+                  <button disabled={isSessionSaving} type="submit" className="btn-primary">{isSessionSaving ? 'Menyimpan...' : 'Buat Sesi'}</button>
+                  <button type="button" className="modal-cancel-btn" onClick={resetSessionForm}>Batal</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'classroom-detail' && classroomDetail && (
+          <div className="view-panel">
+            <div className="table-header-section" style={{ marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', width: '100%' }}>
+                <div>
+                  <h2 className="card-title" style={{ fontSize: '1.2rem' }}>Detail Kelas</h2>
+                  <p className="card-subtitle">Informasi sesi dan siswa untuk kelas terpilih.</p>
+                </div>
+                <button type="button" className="btn-secondary" onClick={() => { setActiveTab('classrooms'); setClassroomDetail(null); }}>
+                  Kembali ke Kelas
+                </button>
+              </div>
+            </div>
+
+            {classroomDetailLoading && (
+              <div style={{ padding: '20px', background: '#f8fafc', borderRadius: '16px', marginBottom: '16px' }}>
+                Memuat detail kelas...
+              </div>
+            )}
+
+            {classroomDetailError && <p role="alert" style={{ color: '#b91c1c', marginBottom: '16px' }}>{classroomDetailError}</p>}
+
+            <div className="modal-detail-card">
+              <div className="modal-detail-row"><span className="modal-detail-label">Nama Kelas</span><span className="modal-detail-value">{classroomDetail.classroom?.name || '-'}</span></div>
+              <div className="modal-detail-row"><span className="modal-detail-label">Jumlah Siswa</span><span className="modal-detail-value">{classroomDetail.students?.length ?? 0}</span></div>
+              <div className="modal-detail-row"><span className="modal-detail-label">Jumlah Sesi</span><span className="modal-detail-value">{classroomDetail.sessions?.length ?? 0}</span></div>
+              <div className="modal-detail-row"><span className="modal-detail-label">Tanggal Dibuat</span><span className="modal-detail-value">{formatDateTimeLabel(classroomDetail.classroom?.created_at)}</span></div>
+            </div>
+
+            <div style={{ display: 'grid', gap: '20px', marginTop: '24px' }}>
+              <div className="dashboard-card" style={{ padding: '20px' }}>
+                <div className="card-header" style={{ marginBottom: '18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h3 className="card-title">Daftar Sesi</h3>
+                    <p className="card-subtitle">Sesi ajar yang terhubung ke kelas ini.</p>
+                  </div>
+                  {currentUser?.role === 'teacher' && (
+                    <button type="button" className="btn-primary" onClick={openSessionForm} style={{ whiteSpace: 'nowrap' }}>
+                      <Plus size={18} />
+                      <span>Buat Sesi</span>
+                    </button>
+                  )}
+                </div>
+
+                {classroomDetail.sessions?.length > 0 ? (
+                  <div style={{ display: 'grid', gap: '12px' }}>
+                    {classroomDetail.sessions.map((session) => (
+                      <div key={session.id} style={{ display: 'grid', gap: '8px', padding: '14px 16px', background: '#f8fafc', borderRadius: '16px', border: '1px solid rgba(99, 102, 241, 0.12)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                          <strong style={{ fontSize: '0.95rem' }}>{session.subject || 'Sesi tanpa nama'}</strong>
+                          <span style={{ color: '#64748b', fontSize: '0.85rem' }}>{session.status || 'Status tidak tersedia'}</span>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                          <span>{formatDateTimeLabel(session.start_time)} — {formatDateTimeLabel(session.end_time)}</span>
+                          <span>Guru: {session.teacher_name || '-'}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ color: '#64748b', fontSize: '0.92rem' }}>Belum ada sesi yang terhubung ke kelas ini.</div>
+                )}
+              </div>
+
+              <div className="dashboard-card" style={{ padding: '20px' }}>
+                <div className="card-header" style={{ marginBottom: '18px' }}>
+                  <div>
+                    <h3 className="card-title">Siswa di Kelas</h3>
+                    <p className="card-subtitle">Daftar siswa yang terdaftar di kelas ini.</p>
+                  </div>
+                </div>
+                {classroomDetail.students?.length > 0 ? (
+                  <div style={{ display: 'grid', gap: '10px' }}>
+                    {classroomDetail.students.map((student) => (
+                      <div key={student.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderRadius: '16px', background: '#f8fafc', border: '1px solid rgba(99, 102, 241, 0.12)' }}>
+                        <div>
+                          <div style={{ fontWeight: 700, color: '#1e1b4b' }}>{student.name}</div>
+                          <div style={{ color: '#64748b', fontSize: '0.85rem' }}>{student.nis || 'NIS tidak tersedia'}</div>
+                        </div>
+                        <span className="badge badge-aktif">{student.attention ? `${student.attention}% fokus` : 'Belum ada metrik'}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ color: '#64748b', fontSize: '0.92rem' }}>Belum ada siswa yang terdaftar di kelas ini.</div>
+                )}
+              </div>
             </div>
           </div>
         )}

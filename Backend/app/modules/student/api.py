@@ -5,7 +5,7 @@ from app.database.database import get_db
 from app.modules.student.schema import StudentCreate, StudentRead, PaginatedStudentResponse, StudentDetailResponse, PaginatedStudentSessionResponse
 from app.core.responses import BaseResponse, PaginationMeta
 from app.modules.student.service import StudentService
-from app.core.auth_deps import require_principal
+from app.core.auth_deps import require_principal, require_principal_or_teacher
 from typing import Optional
 
 router = APIRouter(prefix="/students", tags=["Students"])
@@ -37,7 +37,7 @@ def list_students(
     size: int = Query(10, gt=0),
     search: Optional[str] = Query(None), 
     db: Session = Depends(get_db),
-    _: dict = Depends(require_principal)
+    _: dict = Depends(require_principal_or_teacher)
 ):
     """
     Mengambil daftar student dengan pagination

@@ -273,6 +273,28 @@ export const getClassroomOptions = (token) =>
   apiRequest({ path: '/classrooms/select', method: 'GET', token })
     .then((payload) => normalizeBaseResponse(payload));
 
+export const getCameraOptions = (token) =>
+  apiRequest({ path: '/cameras/select', method: 'GET', token })
+    .then((payload) => normalizeBaseResponse(payload));
+
+export const getClassroomDetail = (classroomId, token) =>
+  apiRequest({ path: `/classrooms/${classroomId}`, method: 'GET', token })
+    .then((payload) => normalizeBaseResponse(payload));
+
+export const getClassroomSessions = (classroomId, token, params = {}) =>
+  listCollection(`/classrooms/${classroomId}/sessions`, token, params);
+
+export const createClassroomSession = (sessionData, token) =>
+  apiRequest({ path: '/classroom-sessions/', method: 'POST', token, body: sessionData })
+    .then((payload) => normalizeBaseResponse(payload));
+
+export const getClassroomSessionDetail = (sessionId, token) =>
+  apiRequest({ path: `/classroom-sessions/${sessionId}`, method: 'GET', token })
+    .then((payload) => normalizeBaseResponse(payload));
+
+export const getClassroomStudents = (classroomId, token, params = {}) =>
+  listCollection(`/classrooms/${classroomId}/students`, token, params);
+
 export const createClassroom = (classroom, token) =>
   apiRequest({ path: '/classrooms/', method: 'POST', token, body: classroom })
     .then((payload) => normalizeBaseResponse(payload));
