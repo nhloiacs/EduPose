@@ -17,7 +17,11 @@ import {
   User,
   Settings,
   Cpu,
-  Save
+  Save,
+  Plus,
+  Eye,
+  PencilLine,
+  Trash2
 } from 'lucide-react';
 import { Line, Bar } from 'react-chartjs-2';
 import { Doughnut } from 'react-chartjs-2';
@@ -93,6 +97,17 @@ const INITIAL_WARNINGS = [];
 const INITIAL_CAMERA_BOXES = [];
 
 const WEB_SOCKET_URL = import.meta.env.VITE_WEBSOCKET_URL?.trim() ?? '';
+
+const ActionButton = ({ variant, icon: Icon, children, className = '', ...props }) => {
+  const mergedClassName = ['action-button', `action-button--${variant}`, className].filter(Boolean).join(' ');
+
+  return (
+    <button type="button" className={mergedClassName} {...props}>
+      {Icon && <Icon size={14} strokeWidth={2.2} aria-hidden="true" />}
+      <span>{children}</span>
+    </button>
+  );
+};
 
 const formatAlertTime = (timestamp) => {
   if (!timestamp) return 'Baru saja';
@@ -183,6 +198,7 @@ export default function App() {
   const [profileError, setProfileError] = useState('');
   const [teacherForm, setTeacherForm] = useState({ name: '', email: '', role: 'teacher', password: '', nip: '', file: null });
   const [editingTeacherId, setEditingTeacherId] = useState(null);
+  const [isTeacherFormOpen, setIsTeacherFormOpen] = useState(false);
   const [teacherFormMessage, setTeacherFormMessage] = useState('');
   const [teacherFormError, setTeacherFormError] = useState('');
   const [isTeacherSaving, setIsTeacherSaving] = useState(false);
@@ -194,6 +210,7 @@ export default function App() {
   const [studentDetail, setStudentDetail] = useState(null);
   const [studentForm, setStudentForm] = useState({ name: '', nis: '', classroom_id: '', file: null });
   const [editingStudentId, setEditingStudentId] = useState(null);
+  const [isStudentEditorOpen, setIsStudentEditorOpen] = useState(false);
   const [studentFormMessage, setStudentFormMessage] = useState('');
   const [classroomOptions, setClassroomOptions] = useState([]);
   const [classroomPage, setClassroomPage] = useState(1);
@@ -203,6 +220,7 @@ export default function App() {
   const [classroomError, setClassroomError] = useState('');
   const [classroomForm, setClassroomForm] = useState({ name: '' });
   const [editingClassroomId, setEditingClassroomId] = useState(null);
+  const [isClassroomFormOpen, setIsClassroomFormOpen] = useState(false);
 
   useEffect(() => {
     setApiAuthToken(authToken);
@@ -378,20 +396,20 @@ export default function App() {
   }, [authToken]);
 
   useEffect(() => {
-    if (!authToken || currentUser?.role !== 'principal') return;
+    if (!authToken) return;
     getClassroomOptions(authToken)
       .then((response) => setClassroomOptions(Array.isArray(response.data) ? response.data : []))
       .catch(() => setClassroomOptions([]));
-  }, [authToken, currentUser?.role]);
+  }, [authToken]);
 
   useEffect(() => {
-    if (!authToken || currentUser?.role !== 'principal' || activeTab !== 'classrooms') return undefined;
+    if (!authToken || activeTab !== 'classrooms') return undefined;
     let isActive = true;
     const loadClassrooms = async () => {
       setClassroomLoading(true);
       setClassroomError('');
       try {
-        const response = await listCollection('/classrooms', authToken, { page: classroomPage, size: 10 });
+        const response = await listCollection('/classrooms', authToken, { page: classroomPage, size: 10, search: searchQuery.trim() });
         if (isActive) { setClassroomList(response.items); setClassroomMeta(response.meta); }
       } catch (error) {
         if (isActive) setClassroomError(error instanceof Error ? error.message : 'Gagal mengambil daftar kelas.');
@@ -399,10 +417,27 @@ export default function App() {
     };
     loadClassrooms();
     return () => { isActive = false; };
-  }, [activeTab, authToken, classroomPage, currentUser?.role]);
+  }, [activeTab, authToken, classroomPage, searchQuery]);
 
   useEffect(() => {
-    if (!authToken || currentUser?.role !== 'principal' || activeTab !== 'students') return undefined;
+    if (!authToken || activeTab !== 'teachers') return undefined;
+    let isActive = true;
+    const loadTeachers = async () => {
+      try {
+        const response = await listCollection('/teachers', authToken, { page: 1, size: 100, search: searchQuery.trim() });
+        if (isActive) {
+          setBackendTeachers(response.items);
+        }
+      } catch (error) {
+        if (isActive) setTeacherFormError(error instanceof Error ? error.message : 'Gagal mengambil daftar teacher.');
+      }
+    };
+    loadTeachers();
+    return () => { isActive = false; };
+  }, [activeTab, authToken, searchQuery]);
+
+  useEffect(() => {
+    if (!authToken || activeTab !== 'students') return undefined;
     let isActive = true;
     const timer = setTimeout(async () => {
       setStudentLoading(true);
@@ -420,7 +455,7 @@ export default function App() {
       }
     }, 300);
     return () => { isActive = false; clearTimeout(timer); };
-  }, [activeTab, authToken, currentUser?.role, searchQuery, studentPage]);
+  }, [activeTab, authToken, searchQuery, studentPage]);
 
   useEffect(() => {
     let isActive = true;
@@ -478,7 +513,6 @@ export default function App() {
         );
       }
 
-      const isPrincipal = currentUser?.role === 'principal';
       const dailyRange = getDateRange(7);
       const weeklyRange = getDateRange(28);
 
@@ -492,13 +526,11 @@ export default function App() {
         getDashboardWarnings(authToken, 'student', { threshold: 60 }),
       ];
 
-      const collectionRequests = isPrincipal
-        ? [
-            listCollection('/students', authToken, { page: 1, size: 100 }),
-            listCollection('/classrooms', authToken, { page: 1, size: 100 }),
-            listCollection('/teachers', authToken, { page: 1, size: 100 }),
-          ]
-        : [];
+      const collectionRequests = [
+        listCollection('/students', authToken, { page: 1, size: 100 }),
+        listCollection('/classrooms', authToken, { page: 1, size: 100 }),
+        listCollection('/teachers', authToken, { page: 1, size: 100 }),
+      ];
 
       try {
         const [
@@ -560,39 +592,30 @@ export default function App() {
         let remoteClassrooms = topClassroomRankings;
         let remoteTeachers = [];
 
-        if (isPrincipal) {
-          const [studentsResponseResult, classroomsResponseResult, teachersResponseResult] = collectionResults;
+        const [studentsResponseResult, classroomsResponseResult, teachersResponseResult] = collectionResults;
 
-          if (studentsResponseResult?.status === 'fulfilled') {
-            const remoteStudents = studentsResponseResult.value.items;
-            nextStudents = enrichStudentsWithPerformers(
-              mergeStudentsFromBackend(remoteStudents),
-              performers,
-            );
-          } else if (studentsResponseResult?.status === 'rejected') {
-            partialErrors.push('daftar siswa');
-          }
-
-          if (classroomsResponseResult?.status === 'fulfilled') {
-            remoteClassrooms = classroomsResponseResult.value.items;
-            setBackendClassrooms(remoteClassrooms);
-          } else if (classroomsResponseResult?.status === 'rejected') {
-            partialErrors.push('daftar kelas');
-          }
-
-          if (teachersResponseResult?.status === 'fulfilled') {
-            remoteTeachers = teachersResponseResult.value.items;
-            setBackendTeachers(remoteTeachers);
-          } else if (teachersResponseResult?.status === 'rejected') {
-            partialErrors.push('daftar guru');
-          }
-        } else {
-          setBackendClassrooms(
-            topClassroomsResult.status === 'fulfilled'
-              ? (Array.isArray(topClassroomsResult.value.data) ? topClassroomsResult.value.data : [])
-              : [],
+        if (studentsResponseResult?.status === 'fulfilled') {
+          const remoteStudents = studentsResponseResult.value.items;
+          nextStudents = enrichStudentsWithPerformers(
+            mergeStudentsFromBackend(remoteStudents),
+            performers,
           );
-          setBackendTeachers([]);
+        } else if (studentsResponseResult?.status === 'rejected') {
+          partialErrors.push('daftar siswa');
+        }
+
+        if (classroomsResponseResult?.status === 'fulfilled') {
+          remoteClassrooms = classroomsResponseResult.value.items;
+          setBackendClassrooms(remoteClassrooms);
+        } else if (classroomsResponseResult?.status === 'rejected') {
+          partialErrors.push('daftar kelas');
+        }
+
+        if (teachersResponseResult?.status === 'fulfilled') {
+          remoteTeachers = teachersResponseResult.value.items;
+          setBackendTeachers(remoteTeachers);
+        } else if (teachersResponseResult?.status === 'rejected') {
+          partialErrors.push('daftar guru');
         }
 
         const mergedBoxes = mergeBoxesFromStudents(nextStudents);
@@ -618,7 +641,7 @@ export default function App() {
         setBackendMessage(
           partialErrors.length > 0
             ? `Dashboard dimuat sebagian. Gagal mengambil: ${partialErrors.join(', ')}.`
-            : `Sinkron dashboard: ${totalStudents} siswa, ${totalClassrooms} kelas${isPrincipal ? `, ${totalTeachers} guru` : ''}.`
+            : `Sinkron dashboard: ${totalStudents} siswa, ${totalClassrooms} kelas, ${totalTeachers} guru.`
         );
       } catch (error) {
         if (!isActive) {
@@ -740,6 +763,14 @@ export default function App() {
   const resetTeacherForm = () => {
     setTeacherForm({ name: '', email: '', role: 'teacher', password: '', nip: '', file: null });
     setEditingTeacherId(null);
+    setIsTeacherFormOpen(false);
+  };
+
+  const openTeacherCreateModal = () => {
+    resetTeacherForm();
+    setTeacherFormError('');
+    setTeacherFormMessage('');
+    setIsTeacherFormOpen(true);
   };
 
   const handleTeacherSubmit = async (event) => {
@@ -772,6 +803,7 @@ export default function App() {
 
   const startEditTeacher = (teacher) => {
     setEditingTeacherId(teacher.id);
+    setIsTeacherFormOpen(true);
     setTeacherForm({ name: teacher.name || '', email: teacher.email || '', role: teacher.role || 'teacher', password: '', nip: teacher.nip || '', file: null });
     setTeacherFormError('');
     setTeacherFormMessage('');
@@ -780,6 +812,16 @@ export default function App() {
   const resetStudentForm = () => {
     setStudentForm({ name: '', nis: '', classroom_id: '', file: null });
     setEditingStudentId(null);
+    setIsStudentEditorOpen(false);
+  };
+
+  const openStudentCreateModal = () => {
+    setStudentForm({ name: '', nis: '', classroom_id: '', file: null });
+    setEditingStudentId(null);
+    setStudentDetail(null);
+    setStudentError('');
+    setStudentFormMessage('');
+    setIsStudentEditorOpen(true);
   };
 
   const handleStudentSubmit = async (event) => {
@@ -807,6 +849,7 @@ export default function App() {
 
   const startEditStudent = (student) => {
     setEditingStudentId(student.id);
+    setIsStudentEditorOpen(true);
     setStudentForm({ name: student.name || '', nis: student.nis || '', classroom_id: student.classroom_id || '', file: null });
     setStudentDetail(null);
     setStudentError('');
@@ -846,6 +889,13 @@ export default function App() {
   const resetClassroomForm = () => {
     setClassroomForm({ name: '' });
     setEditingClassroomId(null);
+    setIsClassroomFormOpen(false);
+  };
+
+  const openClassroomCreateModal = () => {
+    resetClassroomForm();
+    setClassroomError('');
+    setIsClassroomFormOpen(true);
   };
 
   const handleClassroomSubmit = async (event) => {
@@ -870,6 +920,13 @@ export default function App() {
     } catch (error) {
       setClassroomError(error instanceof Error ? error.message : 'Gagal menyimpan kelas.');
     }
+  };
+
+  const startEditClassroom = (classroom) => {
+    setEditingClassroomId(classroom.id);
+    setClassroomForm({ name: classroom.name || '' });
+    setClassroomError('');
+    setIsClassroomFormOpen(true);
   };
 
   const handleDeleteClassroom = async (classroom) => {
@@ -1027,13 +1084,33 @@ export default function App() {
     const matchesStatus = statusFilter === 'All' ? true : student.status === statusFilter;
     return matchesSearch && matchesClass && matchesStatus;
   });
-  const displayedStudents = (currentUser?.role === 'principal' ? studentList : filteredStudents).filter((student) => {
+  const displayedStudents = (activeTab === 'students' ? studentList : filteredStudents).filter((student) => {
     const matchesClass = classFilter === 'All' || student.class === classFilter;
     const matchesStatus = statusFilter === 'All' || student.status === statusFilter;
     return matchesClass && matchesStatus;
   });
+  const teacherListToDisplay = backendTeachers.filter((teacher) => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return true;
+    return [teacher.name, teacher.nip, teacher.email, teacher.role]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(query));
+  });
+  const classroomListToDisplay = classroomList.filter((classroom) => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return true;
+    return [classroom.name]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(query));
+  });
   const studentTotalPages = Math.max(1, Math.ceil(studentMeta.total / studentMeta.size));
   const isLegacyEmbeddedFormVisible = activeTab === 'legacy-embedded-form';
+  const showSearchBar = ['students', 'classrooms', 'teachers'].includes(activeTab);
+  const searchPlaceholder = activeTab === 'students'
+    ? 'Cari siswa, kelas, atau atensi...'
+    : activeTab === 'classrooms'
+      ? 'Cari nama classroom...'
+      : 'Cari teacher, NIP, atau email...';
 
   if (!authToken) {
     return (
@@ -1082,13 +1159,13 @@ export default function App() {
             <span className="menu-label">Siswa</span>
           </button>
 
-          {currentUser?.role === 'principal' && <button
+          <button
             className={`menu-item ${activeTab === 'classrooms' ? 'active' : ''}`}
             onClick={() => setActiveTab('classrooms')}
           >
             <Users size={20} />
             <span className="menu-label">Classroom</span>
-          </button>}
+          </button>
 
           <button 
             className={`menu-item ${activeTab === 'reports' ? 'active' : ''}`}
@@ -1106,13 +1183,13 @@ export default function App() {
             <span className="menu-label">Profil Guru</span>
           </button>
 
-          {currentUser?.role === 'principal' && <button
+          <button
             className={`menu-item ${activeTab === 'teachers' ? 'active' : ''}`}
             onClick={() => setActiveTab('teachers')}
           >
             <User size={20} />
             <span className="menu-label">Teacher</span>
-          </button>}
+          </button>
         </nav>
 
         {/* Profile Avatar Entry point at bottom */}
@@ -1153,18 +1230,21 @@ export default function App() {
           </div>
 
           <div className="header-actions">
-            <div className="search-bar">
-              <Search size={18} color="#64748b" />
-              <input 
-                type="text" 
-                placeholder="Search Student/Class/Attention..." 
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setStudentPage(1);
-                }}
-              />
-            </div>
+            {showSearchBar && (
+              <div className="search-bar">
+                <Search size={18} color="#64748b" />
+                <input 
+                  type="text" 
+                  placeholder={searchPlaceholder} 
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setStudentPage(1);
+                    setClassroomPage(1);
+                  }}
+                />
+              </div>
+            )}
 
             <div className={`connection-status connection-${connectionState}`}>
               <span className="connection-dot" />
@@ -1567,13 +1647,13 @@ export default function App() {
                     <th>Emosi</th>
                     <th>Status</th>
                     <th style={{ textAlign: 'right' }}>Tren</th>
-                    {currentUser?.role === 'principal' && <th>Aksi</th>}
+                    <th>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {studentLoading || (isInitialLoading && currentUser?.role !== 'principal') ? (
+                  {studentLoading || isInitialLoading ? (
                     <tr>
-                      <td colSpan={currentUser?.role === 'principal' ? 8 : 7} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
+                      <td colSpan={8} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
                         Memuat data siswa dari backend...
                       </td>
                     </tr>
@@ -1584,9 +1664,11 @@ export default function App() {
                       if (student.attention < 50) attColor = 'danger';
                       else if (student.attention < 70) attColor = 'warning';
 
+                      const studentRowNumber = ((studentMeta.page - 1) * studentMeta.size) + idx + 1;
+
                       return (
                         <tr key={student.id}>
-                          <td style={{ color: '#64748b', fontWeight: 600 }}>{idx + 1}</td>
+                          <td style={{ color: '#64748b', fontWeight: 600 }}>{studentRowNumber}</td>
                           <td className="table-student-name">{student.name}</td>
                           <td>{student.class}</td>
                           <td>
@@ -1619,21 +1701,19 @@ export default function App() {
                               )}
                             </span>
                           </td>
-                          {currentUser?.role === 'principal' && (
-                            <td>
-                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                <button type="button" className="save-btn" onClick={() => handleStudentDetail(student.id)}>Detail</button>
-                                <button type="button" className="save-btn" onClick={() => startEditStudent(student)}>Ubah</button>
-                                <button type="button" className="save-btn" style={{ background: '#ef4444' }} onClick={() => handleDeleteStudent(student)}>Hapus</button>
-                              </div>
-                            </td>
-                          )}
+                          <td>
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                              <ActionButton variant="detail" icon={Eye} onClick={() => handleStudentDetail(student.id)}>Detail</ActionButton>
+                              <ActionButton variant="edit" icon={PencilLine} onClick={() => startEditStudent(student)}>Ubah</ActionButton>
+                              <ActionButton variant="delete" icon={Trash2} onClick={() => handleDeleteStudent(student)}>Hapus</ActionButton>
+                            </div>
+                          </td>
                         </tr>
                       );
                     })
                   ) : (
                     <tr>
-                      <td colSpan={currentUser?.role === 'principal' ? 8 : 7} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
+                      <td colSpan={8} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
                         {searchQuery || classFilter !== 'All' || statusFilter !== 'All'
                           ? 'Tidak ada siswa yang cocok dengan filter pencarian.'
                           : 'Belum ada data siswa dari backend.'}
@@ -1646,11 +1726,17 @@ export default function App() {
           </div>
         )}
 
-        {activeTab === 'classrooms' && currentUser?.role === 'principal' && (
+        {activeTab === 'classrooms' && (
           <div className="view-panel">
             <div className="table-header-section">
               <h2 className="card-title" style={{ fontSize: '1.2rem' }}>Daftar Classroom</h2>
-              <span style={{ color: '#64748b' }}>{classroomMeta.total} kelas tersinkron</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <span style={{ color: '#64748b' }}>{classroomMeta.total} kelas tersinkron</span>
+                <button type="button" className="btn-primary" onClick={openClassroomCreateModal}>
+                  <Plus size={18} />
+                  <span>Tambah Classroom</span>
+                </button>
+              </div>
             </div>
             {classroomError && <p role="alert" style={{ color: '#b91c1c' }}>{classroomError}</p>}
             <div className="student-table-card">
@@ -1658,22 +1744,15 @@ export default function App() {
                 <thead><tr><th>#</th><th>Nama Kelas</th><th style={{ textAlign: 'right' }}>Aksi</th></tr></thead>
                 <tbody>
                   {classroomLoading ? <tr><td colSpan="3" style={{ textAlign: 'center', padding: '32px' }}>Memuat classroom...</td></tr>
-                    : classroomList.length ? classroomList.map((classroom, index) => <tr key={classroom.id}><td>{(classroomMeta.page - 1) * classroomMeta.size + index + 1}</td><td>{classroom.name}</td><td style={{ textAlign: 'right' }}><button type="button" className="save-btn" onClick={() => { setEditingClassroomId(classroom.id); setClassroomForm({ name: classroom.name }); }}>Ubah</button> <button type="button" className="save-btn" style={{ background: '#ef4444' }} onClick={() => handleDeleteClassroom(classroom)}>Hapus</button></td></tr>)
-                    : <tr><td colSpan="3" style={{ textAlign: 'center', padding: '32px' }}>Belum ada classroom.</td></tr>}
+                    : classroomListToDisplay.length ? classroomListToDisplay.map((classroom, index) => <tr key={classroom.id}><td>{(classroomMeta.page - 1) * classroomMeta.size + index + 1}</td><td>{classroom.name}</td><td style={{ textAlign: 'right' }}><div style={{ display: 'inline-flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}><ActionButton variant="edit" icon={PencilLine} onClick={() => startEditClassroom(classroom)}>Ubah</ActionButton><ActionButton variant="delete" icon={Trash2} onClick={() => handleDeleteClassroom(classroom)}>Hapus</ActionButton></div></td></tr>)
+                    : <tr><td colSpan="3" style={{ textAlign: 'center', padding: '32px' }}>{searchQuery.trim() ? 'Tidak ada classroom yang cocok dengan pencarian.' : 'Belum ada classroom.'}</td></tr>}
                 </tbody>
               </table>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', margin: '18px 0' }}>
-              <button type="button" className="save-btn" disabled={classroomPage <= 1} onClick={() => setClassroomPage((page) => page - 1)}>Sebelumnya</button>
-              <span>Halaman {classroomMeta.page} dari {Math.max(1, Math.ceil(classroomMeta.total / classroomMeta.size))}</span>
-              <button type="button" className="save-btn" disabled={classroomPage >= Math.max(1, Math.ceil(classroomMeta.total / classroomMeta.size))} onClick={() => setClassroomPage((page) => page + 1)}>Berikutnya</button>
-            </div>
-            <div className="profile-details-card">
-              <h3 className="profile-section-title"><Users size={18} color="#6366f1" /><span>{editingClassroomId ? 'Ubah Classroom' : 'Tambah Classroom'}</span></h3>
-              <form onSubmit={handleClassroomSubmit}>
-                <div className="profile-field-group"><label>Nama Kelas</label><input required value={classroomForm.name} onChange={(e) => setClassroomForm({ name: e.target.value })} /></div>
-                <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}><button type="submit" className="btn-primary">{editingClassroomId ? 'Simpan Perubahan' : 'Buat Classroom'}</button>{editingClassroomId && <button type="button" className="save-btn" onClick={resetClassroomForm}>Batal</button>}</div>
-              </form>
+            <div className="pagination-row">
+              <button type="button" className="pagination-button" disabled={classroomPage <= 1} onClick={() => setClassroomPage((page) => page - 1)}>Sebelumnya</button>
+              <span className="pagination-label">Halaman {classroomMeta.page} dari {Math.max(1, Math.ceil(classroomMeta.total / classroomMeta.size))}</span>
+              <button type="button" className="pagination-button" disabled={classroomPage >= Math.max(1, Math.ceil(classroomMeta.total / classroomMeta.size))} onClick={() => setClassroomPage((page) => page + 1)}>Berikutnya</button>
             </div>
           </div>
         )}
@@ -2074,33 +2153,24 @@ export default function App() {
 
               {isLegacyEmbeddedFormVisible && currentUser?.role === 'principal' && (
                 <div className="profile-details-card">
-                  <h3 className="profile-section-title">
-                    <User size={18} color="#6366f1" />
-                    <span>{editingTeacherId ? 'Ubah Teacher' : 'Tambah Teacher'}</span>
-                  </h3>
-                  <p className="card-subtitle">Data dikirim ke backend sebagai multipart/form-data.</p>
-                  {teacherFormError && <p role="alert" style={{ color: '#b91c1c' }}>{teacherFormError}</p>}
-                  {teacherFormMessage && <p style={{ color: '#047857' }}>{teacherFormMessage}</p>}
-                  <form onSubmit={handleTeacherSubmit}>
-                    <div className="profile-fields-grid">
-                      <div className="profile-field-group"><label>Nama</label><input required value={teacherForm.name} onChange={(e) => setTeacherForm({ ...teacherForm, name: e.target.value })} /></div>
-                      <div className="profile-field-group"><label>Email</label><input required type="email" value={teacherForm.email} onChange={(e) => setTeacherForm({ ...teacherForm, email: e.target.value })} /></div>
-                      <div className="profile-field-group"><label>NIP</label><input required value={teacherForm.nip} onChange={(e) => setTeacherForm({ ...teacherForm, nip: e.target.value })} /></div>
-                      <div className="profile-field-group"><label>Role</label><input required value={teacherForm.role} onChange={(e) => setTeacherForm({ ...teacherForm, role: e.target.value })} /></div>
-                      {!editingTeacherId && <div className="profile-field-group"><label>Password</label><input required minLength="1" type="password" value={teacherForm.password} onChange={(e) => setTeacherForm({ ...teacherForm, password: e.target.value })} /></div>}
-                      <div className="profile-field-group"><label>Foto {editingTeacherId ? '(opsional)' : ''}</label><input required={!editingTeacherId} type="file" accept="image/*" onChange={(e) => setTeacherForm({ ...teacherForm, file: e.target.files?.[0] || null })} /></div>
-                    </div>
-                    <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
-                      <button disabled={isTeacherSaving} type="submit" className="btn-primary">{isTeacherSaving ? 'Menyimpan...' : editingTeacherId ? 'Simpan Perubahan' : 'Buat Teacher'}</button>
-                      {editingTeacherId && <button type="button" className="save-btn" onClick={resetTeacherForm}>Batal</button>}
-                    </div>
-                  </form>
-
-                  <div style={{ marginTop: '28px', display: 'grid', gap: '10px' }}>
-                    {backendTeachers.map((teacher) => (
+                  <div className="table-header-section" style={{ marginBottom: '18px' }}>
+                    <h3 className="profile-section-title" style={{ marginBottom: 0, paddingBottom: 0, borderBottom: 'none' }}>
+                      <User size={18} color="#6366f1" />
+                      <span>Teacher</span>
+                    </h3>
+                    <button type="button" className="btn-primary" onClick={openTeacherCreateModal}>
+                      <Plus size={18} />
+                      <span>Tambah Teacher</span>
+                    </button>
+                  </div>
+                  <div style={{ display: 'grid', gap: '10px' }}>
+                    {teacherListToDisplay.map((teacher, index) => (
                       <div key={teacher.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
-                        <span>{teacher.name} — {teacher.nip}</span>
-                        <button type="button" className="save-btn" onClick={() => startEditTeacher(teacher)}>Ubah</button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span className="list-number-badge">{index + 1}</span>
+                          <span>{teacher.name} — {teacher.nip}</span>
+                        </div>
+                        <ActionButton variant="edit" icon={PencilLine} onClick={() => startEditTeacher(teacher)}>Ubah</ActionButton>
                       </div>
                     ))}
                   </div>
@@ -2113,64 +2183,166 @@ export default function App() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', margin: '18px 0' }}>
                   <span style={{ color: '#64748b' }}>Halaman {studentMeta.page} dari {studentTotalPages} — {studentMeta.total} siswa</span>
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <button type="button" className="save-btn" disabled={studentPage <= 1} onClick={() => setStudentPage((page) => page - 1)}>Sebelumnya</button>
-                    <button type="button" className="save-btn" disabled={studentPage >= studentTotalPages} onClick={() => setStudentPage((page) => page + 1)}>Berikutnya</button>
+                    <button type="button" className="pagination-button" disabled={studentPage <= 1} onClick={() => setStudentPage((page) => page - 1)}>Sebelumnya</button>
+                    <button type="button" className="pagination-button" disabled={studentPage >= studentTotalPages} onClick={() => setStudentPage((page) => page + 1)}>Berikutnya</button>
                   </div>
                 </div>
 
                 {studentError && <p role="alert" style={{ color: '#b91c1c' }}>{studentError}</p>}
-                {studentDetail && (
-                  <div className="profile-details-card" style={{ marginBottom: '20px' }}>
-                    <h3 className="profile-section-title"><User size={18} color="#6366f1" /><span>Detail Siswa</span></h3>
-                    <p><strong>{studentDetail.name}</strong> — NIS: {studentDetail.nis || '-'} — Kelas: {studentDetail.classroom_name || '-'}</p>
-                    <p>Rata-rata fokus: {studentDetail.metrics_summary?.avg_focus_score ?? 0} | Terdistraksi: {studentDetail.metrics_summary?.avg_distracted_score ?? 0} | Total angkat tangan: {studentDetail.metrics_summary?.total_raised_hand_count ?? 0}</p>
-                  </div>
-                )}
-
-                <div className="profile-details-card">
-                  <h3 className="profile-section-title"><User size={18} color="#6366f1" /><span>{editingStudentId ? 'Ubah Siswa' : 'Tambah Siswa'}</span></h3>
-                  {studentFormMessage && <p style={{ color: '#047857' }}>{studentFormMessage}</p>}
-                  <form onSubmit={handleStudentSubmit}>
-                    <div className="profile-fields-grid">
-                      <div className="profile-field-group"><label>Nama</label><input required value={studentForm.name} onChange={(e) => setStudentForm({ ...studentForm, name: e.target.value })} /></div>
-                      <div className="profile-field-group"><label>NIS</label><input required value={studentForm.nis} onChange={(e) => setStudentForm({ ...studentForm, nis: e.target.value })} /></div>
-                      <div className="profile-field-group"><label>Kelas</label><select required value={studentForm.classroom_id} onChange={(e) => setStudentForm({ ...studentForm, classroom_id: e.target.value })}><option value="">Pilih kelas</option>{classroomOptions.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.name}</option>)}</select></div>
-                      <div className="profile-field-group"><label>Foto {editingStudentId ? '(opsional)' : ''}</label><input required={!editingStudentId} type="file" accept="image/*" onChange={(e) => setStudentForm({ ...studentForm, file: e.target.files?.[0] || null })} /></div>
-                    </div>
-                    <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}><button type="submit" className="btn-primary">{editingStudentId ? 'Simpan Perubahan' : 'Buat Siswa'}</button>{editingStudentId && <button type="button" className="save-btn" onClick={resetStudentForm}>Batal</button>}</div>
-                  </form>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+                  <button type="button" className="btn-primary" onClick={openStudentCreateModal}>
+                    <Plus size={18} />
+                    <span>Tambah Siswa</span>
+                  </button>
                 </div>
               </>
             )}
           </div>
         )}
 
-        {activeTab === 'teachers' && currentUser?.role === 'principal' && (
+        {activeTab === 'teachers' && (
           <div className="view-panel">
-            <div className="profile-details-card">
-              <h3 className="profile-section-title"><User size={18} color="#6366f1" /><span>{editingTeacherId ? 'Ubah Teacher' : 'Tambah Teacher'}</span></h3>
-              <p className="card-subtitle">Data dikirim ke backend sebagai multipart/form-data.</p>
-              {teacherFormError && <p role="alert" style={{ color: '#b91c1c' }}>{teacherFormError}</p>}
-              {teacherFormMessage && <p style={{ color: '#047857' }}>{teacherFormMessage}</p>}
-              <form onSubmit={handleTeacherSubmit}><div className="profile-fields-grid">
-                <div className="profile-field-group"><label>Nama</label><input required value={teacherForm.name} onChange={(e) => setTeacherForm({ ...teacherForm, name: e.target.value })} /></div>
-                <div className="profile-field-group"><label>Email</label><input required type="email" value={teacherForm.email} onChange={(e) => setTeacherForm({ ...teacherForm, email: e.target.value })} /></div>
-                <div className="profile-field-group"><label>NIP</label><input required value={teacherForm.nip} onChange={(e) => setTeacherForm({ ...teacherForm, nip: e.target.value })} /></div>
-                <div className="profile-field-group"><label>Role</label><input required value={teacherForm.role} onChange={(e) => setTeacherForm({ ...teacherForm, role: e.target.value })} /></div>
-                {!editingTeacherId && <div className="profile-field-group"><label>Password</label><input required type="password" value={teacherForm.password} onChange={(e) => setTeacherForm({ ...teacherForm, password: e.target.value })} /></div>}
-                <div className="profile-field-group"><label>Foto {editingTeacherId ? '(opsional)' : ''}</label><input required={!editingTeacherId} type="file" accept="image/*" onChange={(e) => setTeacherForm({ ...teacherForm, file: e.target.files?.[0] || null })} /></div>
-              </div><div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}><button disabled={isTeacherSaving} type="submit" className="btn-primary">{isTeacherSaving ? 'Menyimpan...' : editingTeacherId ? 'Simpan Perubahan' : 'Buat Teacher'}</button>{editingTeacherId && <button type="button" className="save-btn" onClick={resetTeacherForm}>Batal</button>}</div></form>
+            <div className="table-header-section" style={{ marginBottom: '18px' }}>
+              <h2 className="card-title" style={{ fontSize: '1.2rem' }}>Daftar Teacher</h2>
+              {currentUser?.role === 'principal' && (
+                <button type="button" className="btn-primary" onClick={openTeacherCreateModal}>
+                  <Plus size={18} />
+                  <span>Tambah Teacher</span>
+                </button>
+              )}
             </div>
-            <div className="student-table-card" style={{ marginTop: '20px' }}>{backendTeachers.map((teacher) => <div key={teacher.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', borderBottom: '1px solid #e2e8f0' }}><span>{teacher.name} — {teacher.nip}</span><button type="button" className="save-btn" onClick={() => startEditTeacher(teacher)}>Ubah</button></div>)}</div>
+            <div className="student-table-card">
+              {teacherListToDisplay.length ? teacherListToDisplay.map((teacher, index) => <div key={teacher.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}><div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}><span className="list-number-badge">{index + 1}</span><span>{teacher.name} — {teacher.nip}</span></div>{currentUser?.role === 'principal' && <ActionButton variant="edit" icon={PencilLine} onClick={() => startEditTeacher(teacher)}>Ubah</ActionButton>}</div>) : <div style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>{searchQuery.trim() ? 'Tidak ada teacher yang cocok dengan pencarian.' : 'Belum ada teacher.'}</div>}
+            </div>
           </div>
         )}
 
-        {activeTab === 'students' && currentUser?.role === 'principal' && (
+        {activeTab === 'students' && (
           <div className="view-panel">
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}><span>Halaman {studentMeta.page} dari {studentTotalPages} — {studentMeta.total} siswa</span><div><button type="button" className="save-btn" disabled={studentPage <= 1} onClick={() => setStudentPage((page) => page - 1)}>Sebelumnya</button> <button type="button" className="save-btn" disabled={studentPage >= studentTotalPages} onClick={() => setStudentPage((page) => page + 1)}>Berikutnya</button></div></div>
+            <div className="pagination-row" style={{ marginBottom: '16px' }}>
+              <span className="pagination-label">Halaman {studentMeta.page} dari {studentTotalPages} — {studentMeta.total} siswa</span>
+              <div className="pagination-actions">
+                <button type="button" className="pagination-button" disabled={studentPage <= 1} onClick={() => setStudentPage((page) => page - 1)}>Sebelumnya</button>
+                <button type="button" className="pagination-button" disabled={studentPage >= studentTotalPages} onClick={() => setStudentPage((page) => page + 1)}>Berikutnya</button>
+                <button type="button" className="btn-primary" onClick={openStudentCreateModal}>
+                  <Plus size={18} />
+                  <span>Tambah Siswa</span>
+                </button>
+              </div>
+            </div>
             {studentError && <p role="alert" style={{ color: '#b91c1c' }}>{studentError}</p>}
-            {studentDetail && <div className="profile-details-card" style={{ marginBottom: '20px' }}><h3>Detail Siswa</h3><p><strong>{studentDetail.name}</strong> — NIS: {studentDetail.nis || '-'} — Kelas: {studentDetail.classroom_name || '-'}</p><p>Rata-rata fokus: {studentDetail.metrics_summary?.avg_focus_score ?? 0} | Terdistraksi: {studentDetail.metrics_summary?.avg_distracted_score ?? 0} | Total angkat tangan: {studentDetail.metrics_summary?.total_raised_hand_count ?? 0}</p></div>}
-            <div className="profile-details-card"><h3 className="profile-section-title"><User size={18} color="#6366f1" /><span>{editingStudentId ? 'Ubah Siswa' : 'Tambah Siswa'}</span></h3>{studentFormMessage && <p style={{ color: '#047857' }}>{studentFormMessage}</p>}<form onSubmit={handleStudentSubmit}><div className="profile-fields-grid"><div className="profile-field-group"><label>Nama</label><input required value={studentForm.name} onChange={(e) => setStudentForm({ ...studentForm, name: e.target.value })} /></div><div className="profile-field-group"><label>NIS</label><input required value={studentForm.nis} onChange={(e) => setStudentForm({ ...studentForm, nis: e.target.value })} /></div><div className="profile-field-group"><label>Kelas</label><select required value={studentForm.classroom_id} onChange={(e) => setStudentForm({ ...studentForm, classroom_id: e.target.value })}><option value="">Pilih kelas</option>{classroomOptions.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.name}</option>)}</select></div><div className="profile-field-group"><label>Foto {editingStudentId ? '(opsional)' : ''}</label><input required={!editingStudentId} type="file" accept="image/*" onChange={(e) => setStudentForm({ ...studentForm, file: e.target.files?.[0] || null })} /></div></div><div style={{ marginTop: '20px' }}><button type="submit" className="btn-primary">{editingStudentId ? 'Simpan Perubahan' : 'Buat Siswa'}</button>{editingStudentId && <button type="button" className="save-btn" onClick={resetStudentForm}>Batal</button>}</div></form></div>
+          </div>
+        )}
+
+        {studentDetail && (
+          <div className="modal-backdrop" role="presentation" onClick={() => setStudentDetail(null)}>
+            <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="student-detail-modal-title" onClick={(event) => event.stopPropagation()}>
+              <div className="modal-header">
+                <div>
+                  <h3 id="student-detail-modal-title" className="modal-title">Detail Siswa</h3>
+                  <p className="modal-subtitle">Informasi lengkap siswa yang dipilih</p>
+                </div>
+                <button type="button" className="modal-close" aria-label="Tutup detail siswa" onClick={() => setStudentDetail(null)}>
+                  <XCircle size={20} />
+                </button>
+              </div>
+              <div className="modal-detail-card">
+                <div className="modal-detail-row"><span className="modal-detail-label">Nama</span><span className="modal-detail-value">{studentDetail.name}</span></div>
+                <div className="modal-detail-row"><span className="modal-detail-label">NIS</span><span className="modal-detail-value">{studentDetail.nis || '-'}</span></div>
+                <div className="modal-detail-row"><span className="modal-detail-label">Kelas</span><span className="modal-detail-value">{studentDetail.classroom_name || '-'}</span></div>
+                <div className="modal-detail-row"><span className="modal-detail-label">Rata-rata fokus</span><span className="modal-detail-value">{studentDetail.metrics_summary?.avg_focus_score ?? 0}</span></div>
+                <div className="modal-detail-row"><span className="modal-detail-label">Rata-rata terdistraksi</span><span className="modal-detail-value">{studentDetail.metrics_summary?.avg_distracted_score ?? 0}</span></div>
+                <div className="modal-detail-row"><span className="modal-detail-label">Total angkat tangan</span><span className="modal-detail-value">{studentDetail.metrics_summary?.total_raised_hand_count ?? 0}</span></div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isStudentEditorOpen && (
+          <div className="modal-backdrop" role="presentation" onClick={resetStudentForm}>
+            <div className="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-labelledby="student-edit-modal-title" onClick={(event) => event.stopPropagation()}>
+              <div className="modal-header">
+                <div>
+                  <h3 id="student-edit-modal-title" className="modal-title">{editingStudentId ? 'Ubah Siswa' : 'Tambah Siswa'}</h3>
+                  <p className="modal-subtitle">{editingStudentId ? 'Perbarui data siswa tanpa menambah panel di bawah' : 'Isi data siswa baru tanpa meninggalkan halaman'}</p>
+                </div>
+                <button type="button" className="modal-close" aria-label="Tutup editor siswa" onClick={resetStudentForm}>
+                  <XCircle size={20} />
+                </button>
+              </div>
+              {studentFormMessage && <p style={{ color: '#047857', marginBottom: '16px' }}>{studentFormMessage}</p>}
+              <form onSubmit={handleStudentSubmit}>
+                <div className="profile-fields-grid">
+                  <div className="profile-field-group"><label>Nama</label><input required value={studentForm.name} onChange={(e) => setStudentForm({ ...studentForm, name: e.target.value })} /></div>
+                  <div className="profile-field-group"><label>NIS</label><input required value={studentForm.nis} onChange={(e) => setStudentForm({ ...studentForm, nis: e.target.value })} /></div>
+                  <div className="profile-field-group"><label>Kelas</label><select required value={studentForm.classroom_id} onChange={(e) => setStudentForm({ ...studentForm, classroom_id: e.target.value })}><option value="">Pilih kelas</option>{classroomOptions.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.name}</option>)}</select></div>
+                  <div className="profile-field-group"><label>Foto {editingStudentId ? '(opsional)' : ''}</label><input required={!editingStudentId} type="file" accept="image/*" onChange={(e) => setStudentForm({ ...studentForm, file: e.target.files?.[0] || null })} /></div>
+                </div>
+                <div className="modal-actions">
+                  <button type="submit" className="btn-primary">{editingStudentId ? 'Simpan Perubahan' : 'Buat Siswa'}</button>
+                  <button type="button" className="modal-cancel-btn" onClick={resetStudentForm}>Batal</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {isTeacherFormOpen && (
+          <div className="modal-backdrop" role="presentation" onClick={resetTeacherForm}>
+            <div className="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-labelledby="teacher-form-modal-title" onClick={(event) => event.stopPropagation()}>
+              <div className="modal-header">
+                <div>
+                  <h3 id="teacher-form-modal-title" className="modal-title">{editingTeacherId ? 'Ubah Teacher' : 'Tambah Teacher'}</h3>
+                  <p className="modal-subtitle">Data dikirim ke backend sebagai multipart/form-data.</p>
+                </div>
+                <button type="button" className="modal-close" aria-label="Tutup form teacher" onClick={resetTeacherForm}>
+                  <XCircle size={20} />
+                </button>
+              </div>
+              {teacherFormError && <p role="alert" style={{ color: '#b91c1c', marginBottom: '16px' }}>{teacherFormError}</p>}
+              {teacherFormMessage && <p style={{ color: '#047857', marginBottom: '16px' }}>{teacherFormMessage}</p>}
+              <form onSubmit={handleTeacherSubmit}>
+                <div className="profile-fields-grid">
+                  <div className="profile-field-group"><label>Nama</label><input required value={teacherForm.name} onChange={(e) => setTeacherForm({ ...teacherForm, name: e.target.value })} /></div>
+                  <div className="profile-field-group"><label>Email</label><input required type="email" value={teacherForm.email} onChange={(e) => setTeacherForm({ ...teacherForm, email: e.target.value })} /></div>
+                  <div className="profile-field-group"><label>NIP</label><input required value={teacherForm.nip} onChange={(e) => setTeacherForm({ ...teacherForm, nip: e.target.value })} /></div>
+                  <div className="profile-field-group"><label>Role</label><input required value={teacherForm.role} onChange={(e) => setTeacherForm({ ...teacherForm, role: e.target.value })} /></div>
+                  {!editingTeacherId && <div className="profile-field-group"><label>Password</label><input required minLength="1" type="password" value={teacherForm.password} onChange={(e) => setTeacherForm({ ...teacherForm, password: e.target.value })} /></div>}
+                  <div className="profile-field-group"><label>Foto {editingTeacherId ? '(opsional)' : ''}</label><input required={!editingTeacherId} type="file" accept="image/*" onChange={(e) => setTeacherForm({ ...teacherForm, file: e.target.files?.[0] || null })} /></div>
+                </div>
+                <div className="modal-actions">
+                  <button disabled={isTeacherSaving} type="submit" className="btn-primary">{isTeacherSaving ? 'Menyimpan...' : editingTeacherId ? 'Simpan Perubahan' : 'Buat Teacher'}</button>
+                  <button type="button" className="modal-cancel-btn" onClick={resetTeacherForm}>Batal</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {isClassroomFormOpen && (
+          <div className="modal-backdrop" role="presentation" onClick={resetClassroomForm}>
+            <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="classroom-form-modal-title" onClick={(event) => event.stopPropagation()}>
+              <div className="modal-header">
+                <div>
+                  <h3 id="classroom-form-modal-title" className="modal-title">{editingClassroomId ? 'Ubah Classroom' : 'Tambah Classroom'}</h3>
+                  <p className="modal-subtitle">Kelola data kelas langsung dari popup.</p>
+                </div>
+                <button type="button" className="modal-close" aria-label="Tutup form classroom" onClick={resetClassroomForm}>
+                  <XCircle size={20} />
+                </button>
+              </div>
+              {classroomError && <p role="alert" style={{ color: '#b91c1c', marginBottom: '16px' }}>{classroomError}</p>}
+              <form onSubmit={handleClassroomSubmit}>
+                <div className="profile-field-group">
+                  <label>Nama Kelas</label>
+                  <input required value={classroomForm.name} onChange={(e) => setClassroomForm({ name: e.target.value })} />
+                </div>
+                <div className="modal-actions">
+                  <button type="submit" className="btn-primary">{editingClassroomId ? 'Simpan Perubahan' : 'Buat Classroom'}</button>
+                  <button type="button" className="modal-cancel-btn" onClick={resetClassroomForm}>Batal</button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
 
