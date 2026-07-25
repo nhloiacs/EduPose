@@ -149,6 +149,13 @@ const formatDateTimeLabel = (timestamp) => {
   });
 };
 
+const formatMetricValue = (value) => {
+  if (value === undefined || value === null || Number.isNaN(Number(value))) {
+    return '-';
+  }
+  return Number(value).toLocaleString('id-ID', { maximumFractionDigits: 2 });
+};
+
 const normalizeWebSocketWarning = (payload) => {
   if (!payload || typeof payload !== 'object') {
     return {
@@ -257,6 +264,10 @@ export default function App() {
   const [sessionMeta, setSessionMeta] = useState({ total: 0, page: 1, size: 10 });
   const [sessionLoading, setSessionLoading] = useState(false);
   const [sessionError, setSessionError] = useState('');
+  const [sessionDetail, setSessionDetail] = useState(null);
+  const [sessionDetailLoading, setSessionDetailLoading] = useState(false);
+  const [sessionDetailError, setSessionDetailError] = useState('');
+  const [isSessionDetailOpen, setIsSessionDetailOpen] = useState(false);
   const [classroomPage, setClassroomPage] = useState(1);
   const [classroomList, setClassroomList] = useState([]);
   const [classroomMeta, setClassroomMeta] = useState({ total: 0, page: 1, size: 10 });
@@ -1049,6 +1060,29 @@ export default function App() {
     } catch (error) {
       setStudentError(error instanceof Error ? error.message : 'Gagal mengambil detail siswa.');
     }
+  };
+
+  const handleSessionDetail = async (sessionId) => {
+    setSessionDetailError('');
+    setSessionDetailLoading(true);
+    setIsSessionDetailOpen(true);
+    setSessionDetail(null);
+
+    try {
+      const response = await getClassroomSessionDetail(sessionId, authToken);
+      setSessionDetail(response.data ?? null);
+    } catch (error) {
+      setSessionDetailError(error instanceof Error ? error.message : 'Gagal mengambil detail sesi.');
+    } finally {
+      setSessionDetailLoading(false);
+    }
+  };
+
+  const closeSessionDetail = () => {
+    setIsSessionDetailOpen(false);
+    setSessionDetail(null);
+    setSessionDetailError('');
+    setSessionDetailLoading(false);
   };
 
   const handleDeleteStudent = async (student) => {
@@ -2140,12 +2174,13 @@ export default function App() {
                     <th>Kamera</th>
                     <th>Mulai</th>
                     <th>Status</th>
+                    <th style={{ textAlign: 'right' }}>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sessionLoading ? (
                     <tr>
-                      <td colSpan={7} style={{ textAlign: 'center', padding: '32px' }}>Memuat sesi...</td>
+                      <td colSpan={8} style={{ textAlign: 'center', padding: '32px' }}>Memuat sesi...</td>
                     </tr>
                   ) : backendSessions.length > 0 ? (
                     backendSessions.map((session, index) => (
@@ -2157,6 +2192,9 @@ export default function App() {
                         <td>{session.camera_name || '-'}</td>
                         <td>{formatDateTimeLabel(session.start_time)}</td>
                         <td><span className={`badge badge-status ${session.status === 'ended' ? 'badge-tidak-aktif' : 'badge-aktif'}`}>{session.status}</span></td>
+                        <td style={{ textAlign: 'right' }}>
+                          <ActionButton variant="detail" icon={Eye} onClick={() => handleSessionDetail(session.id)}>Detail</ActionButton>
+                        </td>
                       </tr>
                     ))
                   ) : (
@@ -2174,6 +2212,80 @@ export default function App() {
               <span className="pagination-label">Halaman {sessionMeta.page} dari {Math.max(1, Math.ceil(sessionMeta.total / sessionMeta.size))}</span>
               <button type="button" className="pagination-button" disabled={sessionPage >= Math.max(1, Math.ceil(sessionMeta.total / sessionMeta.size))} onClick={() => setSessionPage((page) => page + 1)}>Berikutnya</button>
             </div>
+
+            {isSessionDetailOpen && (
+              <div className="modal-backdrop" role="presentation" onClick={closeSessionDetail}>
+                <div className="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-labelledby="session-detail-modal-title" onClick={(event) => event.stopPropagation()}>
+                  <div className="modal-header">
+                    <div>
+                      <h3 id="session-detail-modal-title" className="modal-title">Detail Sesi</h3>
+                      <p className="modal-subtitle">Informasi lengkap sesi dan ringkasan metrik.</p>
+                    </div>
+                    <button type="button" className="modal-close" aria-label="Tutup detail sesi" onClick={closeSessionDetail}>
+                      <XCircle size={20} />
+                    </button>
+                  </div>
+
+                  {sessionDetailLoading && (
+                    <div style={{ padding: '20px', background: '#f8fafc', borderRadius: '16px', marginBottom: '16px' }}>
+                      Memuat detail sesi...
+                    </div>
+                  )}
+
+                  {sessionDetailError && <p role="alert" style={{ color: '#b91c1c', marginBottom: '16px' }}>{sessionDetailError}</p>}
+
+                  {sessionDetail && (
+                    <div style={{ display: 'grid', gap: '20px' }}>
+                      <div className="modal-detail-card">
+                        <div className="modal-detail-row"><span className="modal-detail-label">ID Sesi</span><span className="modal-detail-value">{sessionDetail.id || '-'}</span></div>
+                        <div className="modal-detail-row"><span className="modal-detail-label">Nama Kelas</span><span className="modal-detail-value">{sessionDetail.classroom_name || '-'}</span></div>
+                        <div className="modal-detail-row"><span className="modal-detail-label">ID Kelas</span><span className="modal-detail-value">{sessionDetail.classroom_id || '-'}</span></div>
+                        <div className="modal-detail-row"><span className="modal-detail-label">Nama Guru</span><span className="modal-detail-value">{sessionDetail.teacher_name || '-'}</span></div>
+                        <div className="modal-detail-row"><span className="modal-detail-label">ID Guru</span><span className="modal-detail-value">{sessionDetail.teacher_id || '-'}</span></div>
+                        <div className="modal-detail-row"><span className="modal-detail-label">Nama Kamera</span><span className="modal-detail-value">{sessionDetail.camera_name || '-'}</span></div>
+                        <div className="modal-detail-row"><span className="modal-detail-label">ID Kamera</span><span className="modal-detail-value">{sessionDetail.camera_id || '-'}</span></div>
+                        <div className="modal-detail-row"><span className="modal-detail-label">Subject</span><span className="modal-detail-value">{sessionDetail.subject || '-'}</span></div>
+                        <div className="modal-detail-row"><span className="modal-detail-label">Mulai</span><span className="modal-detail-value">{formatDateTimeLabel(sessionDetail.start_time)}</span></div>
+                        <div className="modal-detail-row"><span className="modal-detail-label">Selesai</span><span className="modal-detail-value">{formatDateTimeLabel(sessionDetail.end_time)}</span></div>
+                        <div className="modal-detail-row"><span className="modal-detail-label">Status</span><span className="modal-detail-value">{sessionDetail.status || '-'}</span></div>
+                      </div>
+
+                      <div className="dashboard-card" style={{ padding: '20px' }}>
+                        <div className="card-header" style={{ marginBottom: '18px' }}>
+                          <div>
+                            <h3 className="card-title">Ringkasan Metrik Sesi</h3>
+                            <p className="card-subtitle">Angka fokus, siswa aktif, dan penghitung kehadiran.</p>
+                          </div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '16px' }}>
+                          <div className="metric-card">
+                            <div className="metric-label">Rata-rata Fokus</div>
+                            <div className="metric-value">{formatMetricValue(sessionDetail.metrics_summary?.avg_focus_percentage)}%</div>
+                          </div>
+                          <div className="metric-card">
+                            <div className="metric-label">Rata-rata Siswa Aktif</div>
+                            <div className="metric-value">{formatMetricValue(sessionDetail.metrics_summary?.avg_active_students)}</div>
+                          </div>
+                          <div className="metric-card">
+                            <div className="metric-label">Total Pakai HP</div>
+                            <div className="metric-value">{formatMetricValue(sessionDetail.metrics_summary?.total_using_phone)}</div>
+                          </div>
+                          <div className="metric-card">
+                            <div className="metric-label">Total Angkat Tangan</div>
+                            <div className="metric-value">{formatMetricValue(sessionDetail.metrics_summary?.total_raised_hand)}</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="modal-detail-card">
+                        <div className="modal-detail-row"><span className="modal-detail-label">Hadir</span><span className="modal-detail-value">{sessionDetail.present_count ?? '-'}</span></div>
+                        <div className="modal-detail-row"><span className="modal-detail-label">Absen</span><span className="modal-detail-value">{sessionDetail.absent_count ?? '-'}</span></div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -2916,9 +3028,36 @@ export default function App() {
 
             <div className="modal-detail-card">
               <div className="modal-detail-row"><span className="modal-detail-label">Nama Kelas</span><span className="modal-detail-value">{classroomDetail.classroom?.name || '-'}</span></div>
+              <div className="modal-detail-row"><span className="modal-detail-label">Classroom ID</span><span className="modal-detail-value">{classroomDetail.classroom?.id || '-'}</span></div>
               <div className="modal-detail-row"><span className="modal-detail-label">Jumlah Siswa</span><span className="modal-detail-value">{classroomDetail.students?.length ?? 0}</span></div>
               <div className="modal-detail-row"><span className="modal-detail-label">Jumlah Sesi</span><span className="modal-detail-value">{classroomDetail.sessions?.length ?? 0}</span></div>
-              <div className="modal-detail-row"><span className="modal-detail-label">Tanggal Dibuat</span><span className="modal-detail-value">{formatDateTimeLabel(classroomDetail.classroom?.created_at)}</span></div>
+            </div>
+
+            <div className="dashboard-card" style={{ padding: '20px' }}>
+              <div className="card-header" style={{ marginBottom: '18px' }}>
+                <div>
+                  <h3 className="card-title">Ringkasan Metrik Kelas</h3>
+                  <p className="card-subtitle">Rata-rata metrik kelas berdasarkan sesi yang tersedia.</p>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '16px' }}>
+                <div className="metric-card">
+                  <div className="metric-label">Rata-rata Fokus</div>
+                  <div className="metric-value">{formatMetricValue(classroomDetail.classroom?.metrics_summary?.avg_focus_percentage)}%</div>
+                </div>
+                <div className="metric-card">
+                  <div className="metric-label">Rata-rata Siswa Aktif</div>
+                  <div className="metric-value">{formatMetricValue(classroomDetail.classroom?.metrics_summary?.avg_active_students)}</div>
+                </div>
+                <div className="metric-card">
+                  <div className="metric-label">Rata-rata Pakai HP</div>
+                  <div className="metric-value">{formatMetricValue(classroomDetail.classroom?.metrics_summary?.avg_using_phone_count)}</div>
+                </div>
+                <div className="metric-card">
+                  <div className="metric-label">Rata-rata Angkat Tangan</div>
+                  <div className="metric-value">{formatMetricValue(classroomDetail.classroom?.metrics_summary?.avg_raised_hand_count)}</div>
+                </div>
+              </div>
             </div>
 
             <div style={{ display: 'grid', gap: '20px', marginTop: '24px' }}>
