@@ -173,7 +173,25 @@ export const apiRequest = async (config) => {
   const payload = await parseJson(response);
 
   if (!response.ok) {
-    const errorMessage = normalizeBaseResponse(payload).message || payload?.detail || `Request failed with status ${response.status}`;
+    const baseMessage = normalizeBaseResponse(payload).message || '';
+
+    let detailMsg = '';
+    const detail = payload?.detail;
+    if (Array.isArray(detail)) {
+      detailMsg = detail
+        .map((item) => {
+          if (!item) return '';
+          if (typeof item === 'string') return item;
+          if (typeof item.msg === 'string') return item.msg;
+          try { return JSON.stringify(item); } catch { return String(item); }
+        })
+        .filter(Boolean)
+        .join('; ');
+    } else if (typeof detail === 'string') {
+      detailMsg = detail;
+    }
+
+    const errorMessage = baseMessage || detailMsg || payload?.message || `Request failed with status ${response.status}`;
     throw new Error(errorMessage);
   }
 
@@ -246,6 +264,36 @@ export const updateTeacher = (teacherId, teacher, token) => {
     body: formData,
   }).then((payload) => normalizeBaseResponse(payload));
 };
+
+export const deleteTeacher = (teacherId, token) =>
+  apiRequest({ path: `/teachers/${teacherId}`, method: 'DELETE', token })
+    .then((payload) => normalizeBaseResponse(payload));
+
+export const getTeacherEdit = (teacherId, token) =>
+  apiRequest({ path: `/teachers/${teacherId}/edit`, method: 'GET', token })
+    .then((payload) => normalizeBaseResponse(payload));
+
+export const getTeacherDetail = (teacherId, token) =>
+  apiRequest({ path: `/teachers/${teacherId}`, method: 'GET', token })
+    .then((payload) => normalizeBaseResponse(payload));
+
+export const getTeacherSessions = (teacherId, token, params = {}) =>
+  listCollection(`/teachers/${teacherId}/sessions`, token, params);
+
+export const getAllTeachers = (token, params = {}) =>
+  apiRequest({ path: '/teachers/', method: 'GET', token, params })
+    .then((payload) => normalizeBaseResponse(payload));
+
+export const getStudentEdit = (studentId, token) =>
+  apiRequest({ path: `/students/${studentId}/edit`, method: 'GET', token })
+    .then((payload) => normalizeBaseResponse(payload));
+
+export const getStudentSessions = (studentId, token, params = {}) =>
+  listCollection(`/students/${studentId}/sessions`, token, params);
+
+export const getAllStudents = (token, params = {}) =>
+  apiRequest({ path: '/students/', method: 'GET', token, params })
+    .then((payload) => normalizeBaseResponse(payload));
 
 export const getStudentDetail = (studentId, token) =>
   apiRequest({ path: `/students/${studentId}`, method: 'GET', token })

@@ -67,9 +67,18 @@ import {
   getClassroomSessions,
   getClassroomStudents,
   getStudentDetail,
+  getStudentEdit,
+  getStudentSessions,
+  getAllStudents,
+  getAllTeachers,
+  deleteTeacher,
+  getTeacherEdit,
+  getTeacherDetail,
+  getTeacherSessions,
   getTopPerformers,
   listCollection,
   loginRequest,
+  API_BASE_URL,
   mapClassroomRankings,
   mapStudentWarnings,
   mapTopPerformersToStudents,
@@ -222,6 +231,11 @@ export default function App() {
   const [teacherFormMessage, setTeacherFormMessage] = useState('');
   const [teacherFormError, setTeacherFormError] = useState('');
   const [isTeacherSaving, setIsTeacherSaving] = useState(false);
+  const [teacherDetailModal, setTeacherDetailModal] = useState(null);
+  const [teacherDetailData, setTeacherDetailData] = useState(null);
+  const [teacherSessions, setTeacherSessions] = useState([]);
+  const [teacherDetailLoading, setTeacherDetailLoading] = useState(false);
+  const [teacherErrorMsg, setTeacherErrorMsg] = useState('');
   const [studentPage, setStudentPage] = useState(1);
   const [studentList, setStudentList] = useState([]);
   const [studentMeta, setStudentMeta] = useState({ total: 0, page: 1, size: 10 });
@@ -467,9 +481,10 @@ export default function App() {
     let isActive = true;
     const loadTeachers = async () => {
       try {
-        const response = await listCollection('/teachers', authToken, { page: 1, size: 100, search: searchQuery.trim() });
+        const response = await getAllTeachers(authToken, { page: 1, size: 100, search: searchQuery.trim() });
         if (isActive) {
-          setBackendTeachers(response.items);
+          const items = Array.isArray(response.data?.items) ? response.data.items : [];
+          setBackendTeachers(items);
         }
       } catch (error) {
         if (isActive) setTeacherFormError(error instanceof Error ? error.message : 'Gagal mengambil daftar teacher.');
@@ -654,8 +669,8 @@ export default function App() {
       const collectionRequests = isPrincipalUser
         ? [
             listCollection('/students', authToken, { page: 1, size: 100 }),
-            listCollection('/classrooms', authToken, { page: 1, size: 100 }),
-            listCollection('/teachers', authToken, { page: 1, size: 100 }),
+              listCollection('/classrooms', authToken, { page: 1, size: 100 }),
+              getAllTeachers(authToken, { page: 1, size: 100 }),
           ]
         : [];
 
@@ -746,7 +761,9 @@ export default function App() {
         }
 
         if (teachersResponseResult?.status === 'fulfilled') {
-          remoteTeachers = teachersResponseResult.value.items;
+          const resp = teachersResponseResult.value;
+          const items = Array.isArray(resp.data?.items) ? resp.data.items : [];
+          remoteTeachers = items;
           setBackendTeachers(remoteTeachers);
         } else if (teachersResponseResult?.status === 'rejected') {
           partialErrors.push('daftar guru');
@@ -940,9 +957,26 @@ export default function App() {
   const startEditTeacher = (teacher) => {
     setEditingTeacherId(teacher.id);
     setIsTeacherFormOpen(true);
-    setTeacherForm({ name: teacher.name || '', email: teacher.email || '', role: teacher.role || 'teacher', password: '', nip: teacher.nip || '', file: null });
     setTeacherFormError('');
     setTeacherFormMessage('');
+    // Try to fetch latest edit payload from backend if available
+    (async () => {
+      try {
+        const resp = await getTeacherEdit(teacher.id, authToken);
+        const data = resp.data ?? {};
+        setTeacherForm({
+          name: data.name || teacher.name || '',
+          email: data.email || teacher.email || '',
+          role: data.role || teacher.role || 'teacher',
+          password: '',
+          nip: data.nip || teacher.nip || '',
+          file: null,
+        });
+      } catch (err) {
+        // fallback to provided teacher object
+        setTeacherForm({ name: teacher.name || '', email: teacher.email || '', role: teacher.role || 'teacher', password: '', nip: teacher.nip || '', file: null });
+      }
+    })();
   };
 
   const resetStudentForm = () => {
@@ -986,10 +1020,25 @@ export default function App() {
   const startEditStudent = (student) => {
     setEditingStudentId(student.id);
     setIsStudentEditorOpen(true);
-    setStudentForm({ name: student.name || '', nis: student.nis || '', classroom_id: student.classroom_id || '', file: null });
     setStudentDetail(null);
     setStudentError('');
     setStudentFormMessage('');
+
+    // Try to fetch edit payload from backend (/students/{id}/edit) to prefill form
+    (async () => {
+      try {
+        const resp = await getStudentEdit(student.id, authToken);
+        const data = resp.data ?? {};
+        setStudentForm({
+          name: data.name || student.name || '',
+          nis: data.nis || student.nis || '',
+          classroom_id: data.classroom_id || student.classroom_id || '',
+          file: null,
+        });
+      } catch (err) {
+        setStudentForm({ name: student.name || '', nis: student.nis || '', classroom_id: student.classroom_id || '', file: null });
+      }
+    })();
   };
 
   const handleStudentDetail = async (studentId) => {
@@ -1012,6 +1061,46 @@ export default function App() {
       if (String(studentDetail?.id) === String(student.id)) setStudentDetail(null);
     } catch (error) {
       setStudentError(error instanceof Error ? error.message : 'Gagal menghapus siswa.');
+    }
+  };
+
+  const handleViewTeacher = async (teacherId) => {
+    setTeacherErrorMsg('');
+    setTeacherDetailLoading(true);
+    try {
+      const [detailResp, sessionsResp] = await Promise.allSettled([
+        getTeacherDetail(teacherId, authToken),
+        getTeacherSessions(teacherId, authToken, { page: 1, size: 20 }),
+      ]);
+
+      if (detailResp.status === 'fulfilled') {
+        setTeacherDetailData(detailResp.value.data ?? null);
+      } else {
+        setTeacherDetailData(null);
+      }
+
+      if (sessionsResp.status === 'fulfilled') {
+        setTeacherSessions(Array.isArray(sessionsResp.value.items) ? sessionsResp.value.items : []);
+      } else {
+        setTeacherSessions([]);
+      }
+
+      setTeacherDetailModal(teacherId);
+    } catch (error) {
+      setTeacherErrorMsg(error instanceof Error ? error.message : 'Gagal mengambil detail teacher.');
+    } finally {
+      setTeacherDetailLoading(false);
+    }
+  };
+
+  const handleDeleteTeacher = async (teacher) => {
+    if (!window.confirm(`Hapus guru ${teacher.name}?`)) return;
+    setTeacherErrorMsg('');
+    try {
+      await deleteTeacher(teacher.id, authToken);
+      setBackendTeachers((prev) => prev.filter((t) => String(t.id) !== String(teacher.id)));
+    } catch (error) {
+      setTeacherErrorMsg(error instanceof Error ? error.message : 'Gagal menghapus teacher.');
     }
   };
 
@@ -2499,9 +2588,18 @@ export default function App() {
                       <div key={teacher.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                           <span className="list-number-badge">{index + 1}</span>
-                          <span>{teacher.name} — {teacher.nip}</span>
+                          <span>
+                            {teacher.name} — {teacher.nip}
+                            <span style={{ marginLeft: 8, fontSize: '0.85rem', color: teacher.is_active ? '#10b981' : '#ef4444', fontWeight: 600 }}>
+                              {teacher.is_active ? 'Aktif' : 'Tidak aktif'}
+                            </span>
+                          </span>
                         </div>
-                        <ActionButton variant="edit" icon={PencilLine} onClick={() => startEditTeacher(teacher)}>Ubah</ActionButton>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <ActionButton variant="detail" icon={Eye} onClick={() => handleViewTeacher(teacher.id)}>Lihat</ActionButton>
+                          <ActionButton variant="edit" icon={PencilLine} onClick={() => startEditTeacher(teacher)}>Ubah</ActionButton>
+                          <ActionButton variant="delete" icon={Trash2} onClick={() => handleDeleteTeacher(teacher)}>Hapus</ActionButton>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -2543,7 +2641,25 @@ export default function App() {
               )}
             </div>
             <div className="student-table-card">
-              {teacherListToDisplay.length ? teacherListToDisplay.map((teacher, index) => <div key={teacher.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}><div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}><span className="list-number-badge">{index + 1}</span><span>{teacher.name} — {teacher.nip}</span></div>{currentUser?.role === 'principal' && <ActionButton variant="edit" icon={PencilLine} onClick={() => startEditTeacher(teacher)}>Ubah</ActionButton>}</div>) : <div style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>{searchQuery.trim() ? 'Tidak ada teacher yang cocok dengan pencarian.' : 'Belum ada teacher.'}</div>}
+              {teacherListToDisplay.length ? teacherListToDisplay.map((teacher, index) => (
+                <div key={teacher.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span className="list-number-badge">{index + 1}</span>
+                    <span>
+                      {teacher.name} — {teacher.nip}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <ActionButton variant="detail" icon={Eye} onClick={() => handleViewTeacher(teacher.id)}>Lihat</ActionButton>
+                    {currentUser?.role === 'principal' && (
+                      <>
+                        <ActionButton variant="edit" icon={PencilLine} onClick={() => startEditTeacher(teacher)}>Ubah</ActionButton>
+                        <ActionButton variant="delete" icon={Trash2} onClick={() => handleDeleteTeacher(teacher)}>Hapus</ActionButton>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )) : <div style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>{searchQuery.trim() ? 'Tidak ada teacher yang cocok dengan pencarian.' : 'Belum ada teacher.'}</div>}
             </div>
           </div>
         )}
@@ -2578,12 +2694,63 @@ export default function App() {
                 </button>
               </div>
               <div className="modal-detail-card">
+                <div className="modal-detail-row"><span className="modal-detail-label">ID</span><span className="modal-detail-value">{studentDetail.id || '-'}</span></div>
                 <div className="modal-detail-row"><span className="modal-detail-label">Nama</span><span className="modal-detail-value">{studentDetail.name}</span></div>
+                <div className="modal-detail-row"><span className="modal-detail-label">Foto</span><span className="modal-detail-value">{studentDetail.photo_filepath ? (() => { const p = studentDetail.photo_filepath; const src = (typeof p === 'string' && (p.startsWith('http://') || p.startsWith('https://'))) ? p : `${API_BASE_URL}${p.startsWith('/') ? '' : '/'}${p}`; return <img src={src} alt={studentDetail.name || 'foto siswa'} style={{ height: 80, borderRadius: 8 }} />; })() : '-'}</span></div>
                 <div className="modal-detail-row"><span className="modal-detail-label">NIS</span><span className="modal-detail-value">{studentDetail.nis || '-'}</span></div>
+                <div className="modal-detail-row"><span className="modal-detail-label">Classroom ID</span><span className="modal-detail-value">{studentDetail.classroom_id || '-'}</span></div>
                 <div className="modal-detail-row"><span className="modal-detail-label">Kelas</span><span className="modal-detail-value">{studentDetail.classroom_name || '-'}</span></div>
                 <div className="modal-detail-row"><span className="modal-detail-label">Rata-rata fokus</span><span className="modal-detail-value">{studentDetail.metrics_summary?.avg_focus_score ?? 0}</span></div>
                 <div className="modal-detail-row"><span className="modal-detail-label">Rata-rata terdistraksi</span><span className="modal-detail-value">{studentDetail.metrics_summary?.avg_distracted_score ?? 0}</span></div>
                 <div className="modal-detail-row"><span className="modal-detail-label">Total angkat tangan</span><span className="modal-detail-value">{studentDetail.metrics_summary?.total_raised_hand_count ?? 0}</span></div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {teacherDetailModal && (
+          <div className="modal-backdrop" role="presentation" onClick={() => { setTeacherDetailModal(null); setTeacherDetailData(null); setTeacherSessions([]); }}>
+            <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="teacher-detail-modal-title" onClick={(event) => event.stopPropagation()}>
+              <div className="modal-header">
+                <div>
+                  <h3 id="teacher-detail-modal-title" className="modal-title">Detail Guru</h3>
+                  <p className="modal-subtitle">Informasi lengkap guru dan riwayat sesi</p>
+                </div>
+                <button type="button" className="modal-close" aria-label="Tutup detail guru" onClick={() => { setTeacherDetailModal(null); setTeacherDetailData(null); setTeacherSessions([]); }}>
+                  <XCircle size={20} />
+                </button>
+              </div>
+              <div className="modal-detail-card">
+                {teacherDetailLoading ? (
+                  <div style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>Memuat data teacher...</div>
+                ) : teacherDetailData ? (
+                  <>
+                    <div className="modal-detail-row"><span className="modal-detail-label">ID</span><span className="modal-detail-value">{teacherDetailData.id || '-'}</span></div>
+                    <div className="modal-detail-row"><span className="modal-detail-label">Nama</span><span className="modal-detail-value">{teacherDetailData.name}</span></div>
+                    <div className="modal-detail-row"><span className="modal-detail-label">Email</span><span className="modal-detail-value">{teacherDetailData.email || '-'}</span></div>
+                    <div className="modal-detail-row"><span className="modal-detail-label">Foto</span><span className="modal-detail-value">{teacherDetailData.photo_filepath ? (() => { const p = teacherDetailData.photo_filepath; const src = (typeof p === 'string' && (p.startsWith('http://') || p.startsWith('https://'))) ? p : `${API_BASE_URL}${p.startsWith('/') ? '' : '/'}${p}`; return <img src={src} alt={teacherDetailData.name || 'foto guru'} style={{ height: 80, borderRadius: 8 }} />; })() : '-'}</span></div>
+                    <div className="modal-detail-row"><span className="modal-detail-label">NIP</span><span className="modal-detail-value">{teacherDetailData.nip || '-'}</span></div>
+                    <div className="modal-detail-row"><span className="modal-detail-label">Role</span><span className="modal-detail-value">{teacherDetailData.role || '-'}</span></div>
+                    <div className="modal-detail-row"><span className="modal-detail-label">Is Active</span><span className="modal-detail-value">{teacherDetailData.is_active ? 'Aktif' : 'Tidak Aktif'}</span></div>
+                    <div style={{ marginTop: '12px' }}>
+                      <h4 style={{ margin: '6px 0 10px' }}>Riwayat Sesi</h4>
+                      {teacherSessions.length > 0 ? (
+                        <div style={{ display: 'grid', gap: '8px' }}>
+                          {teacherSessions.map((s) => (
+                            <div key={s.id} style={{ padding: '8px', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                              <div style={{ fontWeight: 700 }}>{s.subject || s.title || 'Tanpa judul'}</div>
+                              <div style={{ fontSize: '0.9rem', color: '#64748b' }}>{s.classroom_name || s.classroom || ''} — {s.start_time ? formatDateTimeLabel(s.start_time) : ''}</div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ color: '#64748b' }}>Belum ada sesi untuk guru ini.</div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ padding: '12px', color: '#64748b' }}>{teacherErrorMsg || 'Detail teacher tidak tersedia.'}</div>
+                )}
               </div>
             </div>
           </div>
