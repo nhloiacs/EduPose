@@ -90,12 +90,6 @@ class ClassroomRepository:
 
     @staticmethod
     def get_sessions(db: Session, classroom_id: uuid.UUID, skip: int, limit: int, search: str = None):
-        base_query = db.query(ClassroomSession).filter(ClassroomSession.classroom_id == classroom_id)
-        if search:
-            base_query = base_query.filter(ClassroomSession.subject.ilike(f"%{search}%"))
-
-        total = base_query.count()
-
         query = db.query(ClassroomSession, ClassroomMetric, Teacher.name.label("teacher_name")).join(
             ClassroomMetric, ClassroomSession.id == ClassroomMetric.session_id, isouter=True
         ).join(
@@ -103,7 +97,8 @@ class ClassroomRepository:
         ).filter(ClassroomSession.classroom_id == classroom_id)
         if search:
             query = query.filter(ClassroomSession.subject.ilike(f"%{search}%"))
-
+        total = query.count()
+        
         items = query.offset(skip).limit(limit).all()
         return items, total
 
