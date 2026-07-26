@@ -65,6 +65,7 @@ import {
   getCameraOptions,
   createClassroomSession,
   getClassroomSessions,
+  getClassroomSessionDetail,
   getClassroomStudents,
   getStudentDetail,
   getStudentEdit,
@@ -429,7 +430,7 @@ export default function App() {
   useEffect(() => {
     // Jika role teacher dan tab sedang menampilkan siswa, alihkan ke laporan
     if (currentUser?.role === 'teacher' && activeTab === 'students') {
-      setActiveTab('reports');
+      setActiveTab('sessions');
     }
   }, [currentUser?.role, activeTab]);
 
@@ -1070,7 +1071,11 @@ export default function App() {
 
     try {
       const response = await getClassroomSessionDetail(sessionId, authToken);
-      setSessionDetail(response.data ?? null);
+      const sessionData = response.data?.data ?? response.data ?? null;
+      setSessionDetail(sessionData);
+      if (!sessionData) {
+        setSessionDetailError('Data sesi tidak tersedia.');
+      }
     } catch (error) {
       setSessionDetailError(error instanceof Error ? error.message : 'Gagal mengambil detail sesi.');
     } finally {
@@ -1186,45 +1191,28 @@ export default function App() {
     setClassroomDetailError('');
     setClassroomDetailLoading(true);
     setSessionForm((previous) => ({ ...previous, classroom_id: classroom.id }));
-    setClassroomDetail({ classroom, sessions: [], students: [] });
+    setClassroomDetail({ classroom, students: [] });
 
     try {
-      const [detailResult, sessionsResult, studentsResult] = await Promise.allSettled([
+      const [detailResult, studentsResult] = await Promise.allSettled([
         getClassroomDetail(classroom.id, authToken),
-        getClassroomSessions(classroom.id, authToken, { page: 1, size: 10 }),
         getClassroomStudents(classroom.id, authToken, { page: 1, size: 10 }),
       ]);
 
       const nextClassroom = detailResult.status === 'fulfilled' && detailResult.value.data
         ? detailResult.value.data
         : classroom;
-      const rawSessions = sessionsResult.status === 'fulfilled'
-        ? (Array.isArray(sessionsResult.value.items) ? sessionsResult.value.items : [])
-        : [];
-
-      const nextSessions = rawSessions.map((s) => ({
-        id: s.id ?? s.session_id ?? s.sessionId,
-        subject: s.subject ?? s.title ?? '',
-        start_time: s.start_time ?? s.startTime ?? null,
-        end_time: s.end_time ?? s.endTime ?? null,
-        teacher_name: s.teacher_name ?? s.teacherName ?? s.teacher ?? null,
-        status: s.status ?? null,
-        metrics: s.metrics ?? null,
-        ...s,
-      }));
       const nextStudents = studentsResult.status === 'fulfilled'
         ? (Array.isArray(studentsResult.value.items) ? studentsResult.value.items : [])
         : [];
 
       setClassroomDetail({
         classroom: nextClassroom,
-        sessions: nextSessions,
         students: nextStudents,
       });
 
       const failedParts = [];
       if (detailResult.status === 'rejected') failedParts.push('detail');
-      if (sessionsResult.status === 'rejected') failedParts.push('sesi');
       if (studentsResult.status === 'rejected') failedParts.push('siswa');
       if (failedParts.length > 0) {
         setClassroomDetailError(`Sebagian data classroom gagal dimuat: ${failedParts.join(', ')}.`);
@@ -1486,12 +1474,14 @@ export default function App() {
   });
   const studentTotalPages = Math.max(1, Math.ceil(studentMeta.total / studentMeta.size));
   const isLegacyEmbeddedFormVisible = activeTab === 'legacy-embedded-form';
-  const showSearchBar = ['students', 'classrooms', 'teachers'].includes(activeTab);
+  const showSearchBar = ['students', 'classrooms', 'teachers', 'sessions'].includes(activeTab);
   const searchPlaceholder = activeTab === 'students'
     ? 'Cari siswa, kelas, atau atensi...'
     : activeTab === 'classrooms'
       ? 'Cari nama classroom...'
-      : 'Cari teacher, NIP, atau email...';
+      : activeTab === 'sessions'
+        ? 'Cari sesi, kelas, guru, atau kamera...'
+        : 'Cari teacher, NIP, atau email...';
   if (!authToken) {
     return (
       <LoginPage
@@ -1545,31 +1535,33 @@ export default function App() {
             </button>
           )}
 
-          {currentUser?.role === 'teacher' ? (
-            <button
-              className={`menu-item ${activeTab === 'reports' ? 'active' : ''}`}
-              onClick={() => setActiveTab('reports')}
-            >
-              <BarChart3 size={20} />
-              <span className="menu-label">Laporan</span>
-            </button>
-          ) : (
-            <button
-              className={`menu-item ${activeTab === 'students' ? 'active' : ''}`}
-              onClick={() => setActiveTab('students')}
-            >
-              <Users size={20} />
-              <span className="menu-label">Siswa</span>
-            </button>
-          )}
-
           <button
-            className={`menu-item ${activeTab === 'classrooms' ? 'active' : ''}`}
-            onClick={() => setActiveTab('classrooms')}
+            className={`menu-item ${activeTab === 'sessions' ? 'active' : ''}`}
+            onClick={() => setActiveTab('sessions')}
           >
-            <BookOpen size={20} />
-            <span className="menu-label">Kelas</span>
+            <Calendar size={20} />
+            <span className="menu-label">Sesi</span>
           </button>
+
+          {currentUser?.role !== 'teacher' && (
+            <>
+              <button
+                className={`menu-item ${activeTab === 'students' ? 'active' : ''}`}
+                onClick={() => setActiveTab('students')}
+              >
+                <Users size={20} />
+                <span className="menu-label">Siswa</span>
+              </button>
+
+              <button
+                className={`menu-item ${activeTab === 'classrooms' ? 'active' : ''}`}
+                onClick={() => setActiveTab('classrooms')}
+              >
+                <BookOpen size={20} />
+                <span className="menu-label">Kelas</span>
+              </button>
+            </>
+          )}
 
           <button 
             className={`menu-item ${activeTab === 'profile' ? 'active' : ''}`}
@@ -2213,79 +2205,6 @@ export default function App() {
               <button type="button" className="pagination-button" disabled={sessionPage >= Math.max(1, Math.ceil(sessionMeta.total / sessionMeta.size))} onClick={() => setSessionPage((page) => page + 1)}>Berikutnya</button>
             </div>
 
-            {isSessionDetailOpen && (
-              <div className="modal-backdrop" role="presentation" onClick={closeSessionDetail}>
-                <div className="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-labelledby="session-detail-modal-title" onClick={(event) => event.stopPropagation()}>
-                  <div className="modal-header">
-                    <div>
-                      <h3 id="session-detail-modal-title" className="modal-title">Detail Sesi</h3>
-                      <p className="modal-subtitle">Informasi lengkap sesi dan ringkasan metrik.</p>
-                    </div>
-                    <button type="button" className="modal-close" aria-label="Tutup detail sesi" onClick={closeSessionDetail}>
-                      <XCircle size={20} />
-                    </button>
-                  </div>
-
-                  {sessionDetailLoading && (
-                    <div style={{ padding: '20px', background: '#f8fafc', borderRadius: '16px', marginBottom: '16px' }}>
-                      Memuat detail sesi...
-                    </div>
-                  )}
-
-                  {sessionDetailError && <p role="alert" style={{ color: '#b91c1c', marginBottom: '16px' }}>{sessionDetailError}</p>}
-
-                  {sessionDetail && (
-                    <div style={{ display: 'grid', gap: '20px' }}>
-                      <div className="modal-detail-card">
-                        <div className="modal-detail-row"><span className="modal-detail-label">ID Sesi</span><span className="modal-detail-value">{sessionDetail.id || '-'}</span></div>
-                        <div className="modal-detail-row"><span className="modal-detail-label">Nama Kelas</span><span className="modal-detail-value">{sessionDetail.classroom_name || '-'}</span></div>
-                        <div className="modal-detail-row"><span className="modal-detail-label">ID Kelas</span><span className="modal-detail-value">{sessionDetail.classroom_id || '-'}</span></div>
-                        <div className="modal-detail-row"><span className="modal-detail-label">Nama Guru</span><span className="modal-detail-value">{sessionDetail.teacher_name || '-'}</span></div>
-                        <div className="modal-detail-row"><span className="modal-detail-label">ID Guru</span><span className="modal-detail-value">{sessionDetail.teacher_id || '-'}</span></div>
-                        <div className="modal-detail-row"><span className="modal-detail-label">Nama Kamera</span><span className="modal-detail-value">{sessionDetail.camera_name || '-'}</span></div>
-                        <div className="modal-detail-row"><span className="modal-detail-label">ID Kamera</span><span className="modal-detail-value">{sessionDetail.camera_id || '-'}</span></div>
-                        <div className="modal-detail-row"><span className="modal-detail-label">Subject</span><span className="modal-detail-value">{sessionDetail.subject || '-'}</span></div>
-                        <div className="modal-detail-row"><span className="modal-detail-label">Mulai</span><span className="modal-detail-value">{formatDateTimeLabel(sessionDetail.start_time)}</span></div>
-                        <div className="modal-detail-row"><span className="modal-detail-label">Selesai</span><span className="modal-detail-value">{formatDateTimeLabel(sessionDetail.end_time)}</span></div>
-                        <div className="modal-detail-row"><span className="modal-detail-label">Status</span><span className="modal-detail-value">{sessionDetail.status || '-'}</span></div>
-                      </div>
-
-                      <div className="dashboard-card" style={{ padding: '20px' }}>
-                        <div className="card-header" style={{ marginBottom: '18px' }}>
-                          <div>
-                            <h3 className="card-title">Ringkasan Metrik Sesi</h3>
-                            <p className="card-subtitle">Angka fokus, siswa aktif, dan penghitung kehadiran.</p>
-                          </div>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '16px' }}>
-                          <div className="metric-card">
-                            <div className="metric-label">Rata-rata Fokus</div>
-                            <div className="metric-value">{formatMetricValue(sessionDetail.metrics_summary?.avg_focus_percentage)}%</div>
-                          </div>
-                          <div className="metric-card">
-                            <div className="metric-label">Rata-rata Siswa Aktif</div>
-                            <div className="metric-value">{formatMetricValue(sessionDetail.metrics_summary?.avg_active_students)}</div>
-                          </div>
-                          <div className="metric-card">
-                            <div className="metric-label">Total Pakai HP</div>
-                            <div className="metric-value">{formatMetricValue(sessionDetail.metrics_summary?.total_using_phone)}</div>
-                          </div>
-                          <div className="metric-card">
-                            <div className="metric-label">Total Angkat Tangan</div>
-                            <div className="metric-value">{formatMetricValue(sessionDetail.metrics_summary?.total_raised_hand)}</div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="modal-detail-card">
-                        <div className="modal-detail-row"><span className="modal-detail-label">Hadir</span><span className="modal-detail-value">{sessionDetail.present_count ?? '-'}</span></div>
-                        <div className="modal-detail-row"><span className="modal-detail-label">Absen</span><span className="modal-detail-value">{sessionDetail.absent_count ?? '-'}</span></div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         )}
 
@@ -3030,7 +2949,6 @@ export default function App() {
               <div className="modal-detail-row"><span className="modal-detail-label">Nama Kelas</span><span className="modal-detail-value">{classroomDetail.classroom?.name || '-'}</span></div>
               <div className="modal-detail-row"><span className="modal-detail-label">Classroom ID</span><span className="modal-detail-value">{classroomDetail.classroom?.id || '-'}</span></div>
               <div className="modal-detail-row"><span className="modal-detail-label">Jumlah Siswa</span><span className="modal-detail-value">{classroomDetail.students?.length ?? 0}</span></div>
-              <div className="modal-detail-row"><span className="modal-detail-label">Jumlah Sesi</span><span className="modal-detail-value">{classroomDetail.sessions?.length ?? 0}</span></div>
             </div>
 
             <div className="dashboard-card" style={{ padding: '20px' }}>
@@ -3060,42 +2978,7 @@ export default function App() {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gap: '20px', marginTop: '24px' }}>
-              <div className="dashboard-card" style={{ padding: '20px' }}>
-                <div className="card-header" style={{ marginBottom: '18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <h3 className="card-title">Daftar Sesi</h3>
-                    <p className="card-subtitle">Sesi ajar yang terhubung ke kelas ini.</p>
-                  </div>
-                  {currentUser?.role === 'teacher' && (
-                    <button type="button" className="btn-primary" onClick={openSessionForm} style={{ whiteSpace: 'nowrap' }}>
-                      <Plus size={18} />
-                      <span>Buat Sesi</span>
-                    </button>
-                  )}
-                </div>
-
-                {classroomDetail.sessions?.length > 0 ? (
-                  <div style={{ display: 'grid', gap: '12px' }}>
-                    {classroomDetail.sessions.map((session) => (
-                      <div key={session.id} style={{ display: 'grid', gap: '8px', padding: '14px 16px', background: '#f8fafc', borderRadius: '16px', border: '1px solid rgba(99, 102, 241, 0.12)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
-                          <strong style={{ fontSize: '0.95rem' }}>{session.subject || 'Sesi tanpa nama'}</strong>
-                          <span style={{ color: '#64748b', fontSize: '0.85rem' }}>{session.status || 'Status tidak tersedia'}</span>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                          <span>{formatDateTimeLabel(session.start_time)} — {formatDateTimeLabel(session.end_time)}</span>
-                          <span>Guru: {session.teacher_name || '-'}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ color: '#64748b', fontSize: '0.92rem' }}>Belum ada sesi yang terhubung ke kelas ini.</div>
-                )}
-              </div>
-
-              <div className="dashboard-card" style={{ padding: '20px' }}>
+            <div className="dashboard-card" style={{ padding: '20px' }}>
                 <div className="card-header" style={{ marginBottom: '18px' }}>
                   <div>
                     <h3 className="card-title">Siswa di Kelas</h3>
@@ -3118,6 +3001,80 @@ export default function App() {
                   <div style={{ color: '#64748b', fontSize: '0.92rem' }}>Belum ada siswa yang terdaftar di kelas ini.</div>
                 )}
               </div>
+            </div>
+          
+        )}
+
+        {isSessionDetailOpen && (
+          <div className="modal-backdrop" role="presentation" onClick={closeSessionDetail}>
+            <div className="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-labelledby="session-detail-modal-title" onClick={(event) => event.stopPropagation()}>
+              <div className="modal-header">
+                <div>
+                  <h3 id="session-detail-modal-title" className="modal-title">Detail Sesi</h3>
+                  <p className="modal-subtitle">Informasi lengkap sesi dan ringkasan metrik.</p>
+                </div>
+                <button type="button" className="modal-close" aria-label="Tutup detail sesi" onClick={closeSessionDetail}>
+                  <XCircle size={20} />
+                </button>
+              </div>
+
+              {sessionDetailLoading && (
+                <div style={{ padding: '20px', background: '#f8fafc', borderRadius: '16px', marginBottom: '16px' }}>
+                  Memuat detail sesi...
+                </div>
+              )}
+
+              {sessionDetailError && <p role="alert" style={{ color: '#b91c1c', marginBottom: '16px' }}>{sessionDetailError}</p>}
+
+              {sessionDetail && (
+                <div style={{ display: 'grid', gap: '20px' }}>
+                  <div className="modal-detail-card">
+                    <div className="modal-detail-row"><span className="modal-detail-label">ID Sesi</span><span className="modal-detail-value">{sessionDetail.id || '-'}</span></div>
+                    <div className="modal-detail-row"><span className="modal-detail-label">Nama Kelas</span><span className="modal-detail-value">{sessionDetail.classroom_name || '-'}</span></div>
+                    <div className="modal-detail-row"><span className="modal-detail-label">ID Kelas</span><span className="modal-detail-value">{sessionDetail.classroom_id || '-'}</span></div>
+                    <div className="modal-detail-row"><span className="modal-detail-label">Nama Guru</span><span className="modal-detail-value">{sessionDetail.teacher_name || '-'}</span></div>
+                    <div className="modal-detail-row"><span className="modal-detail-label">ID Guru</span><span className="modal-detail-value">{sessionDetail.teacher_id || '-'}</span></div>
+                    <div className="modal-detail-row"><span className="modal-detail-label">Nama Kamera</span><span className="modal-detail-value">{sessionDetail.camera_name || '-'}</span></div>
+                    <div className="modal-detail-row"><span className="modal-detail-label">ID Kamera</span><span className="modal-detail-value">{sessionDetail.camera_id || '-'}</span></div>
+                    <div className="modal-detail-row"><span className="modal-detail-label">Subject</span><span className="modal-detail-value">{sessionDetail.subject || '-'}</span></div>
+                    <div className="modal-detail-row"><span className="modal-detail-label">Mulai</span><span className="modal-detail-value">{formatDateTimeLabel(sessionDetail.start_time)}</span></div>
+                    <div className="modal-detail-row"><span className="modal-detail-label">Selesai</span><span className="modal-detail-value">{formatDateTimeLabel(sessionDetail.end_time)}</span></div>
+                    <div className="modal-detail-row"><span className="modal-detail-label">Status</span><span className="modal-detail-value">{sessionDetail.status || '-'}</span></div>
+                  </div>
+
+                  <div className="dashboard-card" style={{ padding: '20px' }}>
+                    <div className="card-header" style={{ marginBottom: '18px' }}>
+                      <div>
+                        <h3 className="card-title">Ringkasan Metrik Sesi</h3>
+                        <p className="card-subtitle">Angka fokus, siswa aktif, dan penghitung kehadiran.</p>
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '16px' }}>
+                      <div className="metric-card">
+                        <div className="metric-label">Rata-rata Fokus</div>
+                        <div className="metric-value">{formatMetricValue(sessionDetail.metrics_summary?.avg_focus_percentage)}%</div>
+                      </div>
+                      <div className="metric-card">
+                        <div className="metric-label">Rata-rata Siswa Aktif</div>
+                        <div className="metric-value">{formatMetricValue(sessionDetail.metrics_summary?.avg_active_students)}</div>
+                      </div>
+                      <div className="metric-card">
+                        <div className="metric-label">Total Pakai HP</div>
+                        <div className="metric-value">{formatMetricValue(sessionDetail.metrics_summary?.total_using_phone)}</div>
+                      </div>
+                      <div className="metric-card">
+                        <div className="metric-label">Total Angkat Tangan</div>
+                        <div className="metric-value">{formatMetricValue(sessionDetail.metrics_summary?.total_raised_hand)}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="modal-detail-card">
+                    <div className="modal-detail-row"><span className="modal-detail-label">Hadir</span><span className="modal-detail-value">{sessionDetail.present_count ?? '-'}</span></div>
+                    <div className="modal-detail-row"><span className="modal-detail-label">Absen</span><span className="modal-detail-value">{sessionDetail.absent_count ?? '-'}</span></div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
