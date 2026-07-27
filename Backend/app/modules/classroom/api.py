@@ -5,7 +5,7 @@ from app.database.database import get_db
 from app.modules.classroom.schema import ClassroomCreate, ClassroomRead, PaginatedClassroomResponse, ClassroomUpdate, ClassroomDetailResponse, PaginatedClassroomSessionResponse, PaginatedClassroomStudentResponse, ClassroomSelectRead
 from app.core.responses import BaseResponse, PaginationMeta
 from app.modules.classroom.service import ClassroomService
-from app.core.auth_deps import require_principal
+from app.core.auth_deps import require_principal, require_principal_or_teacher
 from typing import Optional, List
 
 router = APIRouter(prefix="/classrooms", tags=["Classrooms"])
@@ -46,7 +46,7 @@ def list_classrooms(
 def get_classroom_select(
     search: Optional[str] = Query(None), 
     db: Session = Depends(get_db), 
-    _: dict = Depends(require_principal)
+    _: dict = Depends(require_principal_or_teacher)
 ):
     """
     Mengambil list ringan (id, name) untuk kebutuhan select/dropdown di frontend
