@@ -1,0 +1,437 @@
+/* Teacher Sessions History Component Styles */
+
+.teacher-sessions-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px;
+  background-color: #f8fafc;
+  border-radius: 8px;
+  min-height: 400px;
+}
+
+.teacher-sessions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.teacher-sessions-header h2,
+.teacher-sessions-header p {
+  margin: 0;
+}
+
+.teacher-sessions-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.teacher-sessions-subtitle {
+  font-size: 0.9rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.teacher-sessions-close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #64748b;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.teacher-sessions-close-btn:hover {
+  background-color: #e2e8f0;
+  color: #1e293b;
+}
+
+.teacher-sessions-filters {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.teacher-sessions-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 250px;
+  padding: 8px 12px;
+  background-color: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
+.teacher-sessions-search svg {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.teacher-sessions-search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 0.9rem;
+  color: #1e293b;
+}
+
+.teacher-sessions-search-input::placeholder {
+  color: #cbd5e1;
+}
+
+.teacher-sessions-filter-select {
+  padding: 8px 12px;
+  background-color: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: #1e293b;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.teacher-sessions-filter-select:hover {
+  border-color: #cbd5e1;
+}
+
+.teacher-sessions-filter-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.teacher-sessions-content {
+  flex: 1;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.teacher-sessions-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 300px;
+  color: #64748b;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.teacher-sessions-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 300px;
+  padding: 20px;
+  background-color: #fee2e2;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  color: #991b1b;
+  text-align: center;
+}
+
+.teacher-sessions-error svg {
+  color: #dc2626;
+}
+
+.teacher-sessions-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 300px;
+  color: #64748b;
+}
+
+.teacher-sessions-empty svg {
+  color: #cbd5e1;
+  opacity: 0.5;
+}
+
+.teacher-sessions-empty p {
+  font-size: 1rem;
+  font-weight: 500;
+  margin: 0;
+  color: #1e293b;
+}
+
+.teacher-sessions-empty-hint {
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+
+.teacher-sessions-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 12px;
+}
+
+.teacher-session-card {
+  background-color: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.2s;
+}
+
+.teacher-session-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.teacher-session-card-header {
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.teacher-session-card-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.teacher-session-card-title h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+  word-break: break-word;
+}
+
+.teacher-session-status {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.teacher-session-status--ongoing {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.teacher-session-status--finished {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.teacher-session-status--cancelled {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.teacher-session-status--unknown {
+  background-color: #f3f4f6;
+  color: #6b7280;
+}
+
+.teacher-session-card-details {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.teacher-session-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.teacher-session-detail-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #64748b;
+  font-size: 0.85rem;
+  font-weight: 500;
+  min-width: 90px;
+}
+
+.teacher-session-detail-label svg {
+  color: #cbd5e1;
+  flex-shrink: 0;
+}
+
+.teacher-session-detail-value {
+  font-size: 0.9rem;
+  color: #1e293b;
+  font-weight: 500;
+  text-align: right;
+}
+
+.teacher-session-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  padding-top: 8px;
+  margin-top: 8px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.teacher-session-metric-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  background-color: #f8fafc;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.teacher-session-metric-label {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.teacher-session-metric-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.teacher-sessions-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.teacher-sessions-pagination-info {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.teacher-sessions-pagination-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.teacher-sessions-pagination-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background-color: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: #1e293b;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.teacher-sessions-pagination-btn:hover:not(:disabled) {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.teacher-sessions-pagination-btn:disabled {
+  color: #cbd5e1;
+  cursor: not-allowed;
+}
+
+.teacher-sessions-pagination-btn svg {
+  flex-shrink: 0;
+}
+
+/* Button styles used in component */
+.btn-secondary {
+  padding: 8px 16px;
+  background-color: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #1e293b;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  background-color: #e2e8f0;
+  border-color: #cbd5e1;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .teacher-sessions-container {
+    padding: 16px;
+  }
+
+  .teacher-sessions-header {
+    flex-direction: column;
+  }
+
+  .teacher-sessions-filters {
+    flex-direction: column;
+  }
+
+  .teacher-sessions-search {
+    min-width: 100%;
+  }
+
+  .teacher-sessions-filter-select {
+    width: 100%;
+  }
+
+  .teacher-sessions-list {
+    grid-template-columns: 1fr;
+  }
+
+  .teacher-sessions-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .teacher-sessions-pagination {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .teacher-sessions-pagination-controls {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .teacher-sessions-pagination-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}

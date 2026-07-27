@@ -1,15 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
-import { 
-  LayoutDashboard, 
-  Video, 
-  Users, 
-  BarChart3, 
-  Search, 
-  AlertTriangle, 
-  TrendingUp, 
-  TrendingDown, 
-  Clock, 
-  Award, 
+import {
+  LayoutDashboard,
+  Video,
+  Users,
+  BarChart3,
+  Search,
+  AlertTriangle,
+  TrendingUp,
+  TrendingDown,
+  Clock,
+  Award,
   Calendar,
   BookOpen,
   CheckCircle,
@@ -22,10 +22,9 @@ import {
   Plus,
   Eye,
   PencilLine,
-  Trash2
+  Trash2,
 } from 'lucide-react';
-import { Line, Bar } from 'react-chartjs-2';
-import { Doughnut } from 'react-chartjs-2';
+import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import logoEdupose from './assets/logo-edupose.png';
 import {
   Chart as ChartJS,
@@ -38,9 +37,10 @@ import {
   Title,
   Tooltip,
   Legend,
-  Filler
+  Filler,
 } from 'chart.js';
 import {
+  API_BASE_URL,
   buildClassComparisonChart,
   buildDailyAttentionChart,
   buildReportsDailyTrendChart,
@@ -48,38 +48,37 @@ import {
   buildWeeklyAttentionChart,
   checkBackendHealth,
   clearStoredSession,
-  createTeacher,
-  createStudent,
   createClassroom,
+  createClassroomSession,
+  createStudent,
+  createTeacher,
   deleteClassroom,
   deleteStudent,
+  deleteTeacher,
   enrichStudentsWithPerformers,
+  getAllStudents,
+  getAllTeachers,
   getAverageFocusFromMetrics,
+  getCameraOptions,
+  getClassroomDetail,
+  getClassroomOptions,
+  getClassroomSessionDetail,
+  getClassroomSessions,
+  getClassroomStudents,
+  getCurrentTeacherProfile,
   getDashboardMetrics,
   getDashboardSummary,
   getDashboardWarnings,
   getDateRange,
-  getCurrentTeacherProfile,
-  getClassroomDetail,
-  getClassroomOptions,
-  getCameraOptions,
-  createClassroomSession,
-  getClassroomSessions,
-  getClassroomSessionDetail,
-  getClassroomStudents,
   getStudentDetail,
   getStudentEdit,
   getStudentSessions,
-  getAllStudents,
-  getAllTeachers,
-  deleteTeacher,
-  getTeacherEdit,
   getTeacherDetail,
+  getTeacherEdit,
   getTeacherSessions,
   getTopPerformers,
   listCollection,
   loginRequest,
-  API_BASE_URL,
   mapClassroomRankings,
   mapStudentWarnings,
   mapTopPerformersToStudents,
@@ -88,11 +87,13 @@ import {
   persistSession,
   readStoredSession,
   setApiAuthToken,
-  updateTeacher,
-  updateStudent,
   updateClassroom,
+  updateStudent,
+  updateTeacher,
 } from './lib/backendApi';
+import TeacherDetailModal from './components/TeacherDetailModal';
 import LoginPage from './components/LoginPage';
+import StudentSessionsHistoryDisplay from './components/StudentSessionsHistoryDisplay';
 
 // Register Chart.js components
 ChartJS.register(
@@ -242,6 +243,7 @@ export default function App() {
   const [teacherDetailModal, setTeacherDetailModal] = useState(null);
   const [teacherDetailData, setTeacherDetailData] = useState(null);
   const [teacherSessions, setTeacherSessions] = useState([]);
+  const [teacherSessionsError, setTeacherSessionsError] = useState('');
   const [teacherDetailLoading, setTeacherDetailLoading] = useState(false);
   const [teacherErrorMsg, setTeacherErrorMsg] = useState('');
   const [studentPage, setStudentPage] = useState(1);
@@ -1105,6 +1107,7 @@ export default function App() {
 
   const handleViewTeacher = async (teacherId) => {
     setTeacherErrorMsg('');
+    setTeacherSessionsError('');
     setTeacherDetailLoading(true);
     try {
       const [detailResp, sessionsResp] = await Promise.allSettled([
@@ -1115,17 +1118,27 @@ export default function App() {
       if (detailResp.status === 'fulfilled') {
         setTeacherDetailData(detailResp.value.data ?? null);
       } else {
+        console.error('Teacher detail fetch failed:', detailResp.reason);
         setTeacherDetailData(null);
       }
 
       if (sessionsResp.status === 'fulfilled') {
-        setTeacherSessions(Array.isArray(sessionsResp.value.items) ? sessionsResp.value.items : []);
+        const sessResp = sessionsResp.value;
+        const sessItems = Array.isArray(sessResp?.items) ? sessResp.items : [];
+        setTeacherSessions(sessItems);
       } else {
+        console.error('Teacher sessions fetch failed:', sessionsResp.reason);
         setTeacherSessions([]);
+        setTeacherSessionsError(
+          sessionsResp.reason instanceof Error
+            ? sessionsResp.reason.message
+            : String(sessionsResp.reason)
+        );
       }
 
       setTeacherDetailModal(teacherId);
     } catch (error) {
+      console.error('handleViewTeacher error:', error);
       setTeacherErrorMsg(error instanceof Error ? error.message : 'Gagal mengambil detail teacher.');
     } finally {
       setTeacherDetailLoading(false);
@@ -2714,78 +2727,54 @@ export default function App() {
 
         {studentDetail && (
           <div className="modal-backdrop" role="presentation" onClick={() => setStudentDetail(null)}>
-            <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="student-detail-modal-title" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-labelledby="student-detail-modal-title" onClick={(event) => event.stopPropagation()}>
               <div className="modal-header">
                 <div>
                   <h3 id="student-detail-modal-title" className="modal-title">Detail Siswa</h3>
-                  <p className="modal-subtitle">Informasi lengkap siswa yang dipilih</p>
+                  <p className="modal-subtitle">Informasi lengkap siswa dan riwayat sesi</p>
                 </div>
                 <button type="button" className="modal-close" aria-label="Tutup detail siswa" onClick={() => setStudentDetail(null)}>
                   <XCircle size={20} />
                 </button>
               </div>
-              <div className="modal-detail-card">
-                <div className="modal-detail-row"><span className="modal-detail-label">ID</span><span className="modal-detail-value">{studentDetail.id || '-'}</span></div>
-                <div className="modal-detail-row"><span className="modal-detail-label">Nama</span><span className="modal-detail-value">{studentDetail.name}</span></div>
-                <div className="modal-detail-row"><span className="modal-detail-label">Foto</span><span className="modal-detail-value">{studentDetail.photo_filepath ? (() => { const p = studentDetail.photo_filepath; const src = (typeof p === 'string' && (p.startsWith('http://') || p.startsWith('https://'))) ? p : `${API_BASE_URL}${p.startsWith('/') ? '' : '/'}${p}`; return <img src={src} alt={studentDetail.name || 'foto siswa'} style={{ height: 80, borderRadius: 8 }} />; })() : '-'}</span></div>
-                <div className="modal-detail-row"><span className="modal-detail-label">NIS</span><span className="modal-detail-value">{studentDetail.nis || '-'}</span></div>
-                <div className="modal-detail-row"><span className="modal-detail-label">Classroom ID</span><span className="modal-detail-value">{studentDetail.classroom_id || '-'}</span></div>
-                <div className="modal-detail-row"><span className="modal-detail-label">Kelas</span><span className="modal-detail-value">{studentDetail.classroom_name || '-'}</span></div>
-                <div className="modal-detail-row"><span className="modal-detail-label">Rata-rata fokus</span><span className="modal-detail-value">{studentDetail.metrics_summary?.avg_focus_score ?? 0}</span></div>
-                <div className="modal-detail-row"><span className="modal-detail-label">Rata-rata terdistraksi</span><span className="modal-detail-value">{studentDetail.metrics_summary?.avg_distracted_score ?? 0}</span></div>
-                <div className="modal-detail-row"><span className="modal-detail-label">Total angkat tangan</span><span className="modal-detail-value">{studentDetail.metrics_summary?.total_raised_hand_count ?? 0}</span></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', padding: '20px', minHeight: '500px' }}>
+                <div className="modal-detail-card">
+                  <div className="modal-detail-row"><span className="modal-detail-label">ID</span><span className="modal-detail-value">{studentDetail.id || '-'}</span></div>
+                  <div className="modal-detail-row"><span className="modal-detail-label">Nama</span><span className="modal-detail-value">{studentDetail.name}</span></div>
+                  <div className="modal-detail-row"><span className="modal-detail-label">Foto</span><span className="modal-detail-value">{studentDetail.photo_filepath ? (() => { const p = studentDetail.photo_filepath; const src = (typeof p === 'string' && (p.startsWith('http://') || p.startsWith('https://'))) ? p : `${API_BASE_URL}${p.startsWith('/') ? '' : '/'}${p}`; return <img src={src} alt={studentDetail.name || 'foto siswa'} style={{ height: 80, borderRadius: 8 }} />; })() : '-'}</span></div>
+                  <div className="modal-detail-row"><span className="modal-detail-label">NIS</span><span className="modal-detail-value">{studentDetail.nis || '-'}</span></div>
+                  <div className="modal-detail-row"><span className="modal-detail-label">Kelas</span><span className="modal-detail-value">{studentDetail.classroom_name || '-'}</span></div>
+                  <div className="modal-detail-row"><span className="modal-detail-label">Rata-rata Fokus</span><span className="modal-detail-value">{((studentDetail.metrics_summary?.avg_focus_score ?? 0) * 100).toFixed(1)}%</span></div>
+                  <div className="modal-detail-row"><span className="modal-detail-label">Rata-rata Terdistraksi</span><span className="modal-detail-value">{((studentDetail.metrics_summary?.avg_distracted_score ?? 0) * 100).toFixed(1)}%</span></div>
+                  <div className="modal-detail-row"><span className="modal-detail-label">Total Angkat Tangan</span><span className="modal-detail-value">{studentDetail.metrics_summary?.total_raised_hand_count ?? 0}</span></div>
+                </div>
+                <div style={{ borderLeft: '1px solid #e2e8f0', paddingLeft: '20px', maxHeight: '500px', overflowY: 'auto' }}>
+                  <h4 style={{ margin: '0 0 12px 0', fontSize: '1rem', fontWeight: 600, color: '#1e293b' }}>Riwayat Sesi</h4>
+                  <StudentSessionsHistoryDisplay
+                    studentId={studentDetail.id}
+                    authToken={authToken}
+                  />
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        {teacherDetailModal && (
-          <div className="modal-backdrop" role="presentation" onClick={() => { setTeacherDetailModal(null); setTeacherDetailData(null); setTeacherSessions([]); }}>
-            <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="teacher-detail-modal-title" onClick={(event) => event.stopPropagation()}>
-              <div className="modal-header">
-                <div>
-                  <h3 id="teacher-detail-modal-title" className="modal-title">Detail Guru</h3>
-                  <p className="modal-subtitle">Informasi lengkap guru dan riwayat sesi</p>
-                </div>
-                <button type="button" className="modal-close" aria-label="Tutup detail guru" onClick={() => { setTeacherDetailModal(null); setTeacherDetailData(null); setTeacherSessions([]); }}>
-                  <XCircle size={20} />
-                </button>
-              </div>
-              <div className="modal-detail-card">
-                {teacherDetailLoading ? (
-                  <div style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>Memuat data teacher...</div>
-                ) : teacherDetailData ? (
-                  <>
-                    <div className="modal-detail-row"><span className="modal-detail-label">ID</span><span className="modal-detail-value">{teacherDetailData.id || '-'}</span></div>
-                    <div className="modal-detail-row"><span className="modal-detail-label">Nama</span><span className="modal-detail-value">{teacherDetailData.name}</span></div>
-                    <div className="modal-detail-row"><span className="modal-detail-label">Email</span><span className="modal-detail-value">{teacherDetailData.email || '-'}</span></div>
-                    <div className="modal-detail-row"><span className="modal-detail-label">Foto</span><span className="modal-detail-value">{teacherDetailData.photo_filepath ? (() => { const p = teacherDetailData.photo_filepath; const src = (typeof p === 'string' && (p.startsWith('http://') || p.startsWith('https://'))) ? p : `${API_BASE_URL}${p.startsWith('/') ? '' : '/'}${p}`; return <img src={src} alt={teacherDetailData.name || 'foto guru'} style={{ height: 80, borderRadius: 8 }} />; })() : '-'}</span></div>
-                    <div className="modal-detail-row"><span className="modal-detail-label">NIP</span><span className="modal-detail-value">{teacherDetailData.nip || '-'}</span></div>
-                    <div className="modal-detail-row"><span className="modal-detail-label">Role</span><span className="modal-detail-value">{teacherDetailData.role || '-'}</span></div>
-                    <div className="modal-detail-row"><span className="modal-detail-label">Is Active</span><span className="modal-detail-value">{teacherDetailData.is_active ? 'Aktif' : 'Tidak Aktif'}</span></div>
-                    <div style={{ marginTop: '12px' }}>
-                      <h4 style={{ margin: '6px 0 10px' }}>Riwayat Sesi</h4>
-                      {teacherSessions.length > 0 ? (
-                        <div style={{ display: 'grid', gap: '8px' }}>
-                          {teacherSessions.map((s) => (
-                            <div key={s.id} style={{ padding: '8px', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-                              <div style={{ fontWeight: 700 }}>{s.subject || s.title || 'Tanpa judul'}</div>
-                              <div style={{ fontSize: '0.9rem', color: '#64748b' }}>{s.classroom_name || s.classroom || ''} — {s.start_time ? formatDateTimeLabel(s.start_time) : ''}</div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div style={{ color: '#64748b' }}>Belum ada sesi untuk guru ini.</div>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <div style={{ padding: '12px', color: '#64748b' }}>{teacherErrorMsg || 'Detail teacher tidak tersedia.'}</div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        <TeacherDetailModal
+          teacherDetailModal={teacherDetailModal}
+          teacherDetailLoading={teacherDetailLoading}
+          teacherDetailData={teacherDetailData}
+          teacherErrorMsg={teacherErrorMsg}
+          teacherSessions={teacherSessions}
+          teacherSessionsError={teacherSessionsError}
+          onClose={() => {
+            setTeacherDetailModal(null);
+            setTeacherDetailData(null);
+            setTeacherSessions([]);
+            setTeacherSessionsError('');
+            setTeacherErrorMsg('');
+          }}
+        />
 
         {isStudentEditorOpen && (
           <div className="modal-backdrop" role="presentation" onClick={resetStudentForm}>

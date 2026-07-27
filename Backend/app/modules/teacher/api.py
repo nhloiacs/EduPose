@@ -5,7 +5,7 @@ from app.database.database import get_db
 from app.modules.teacher.schema import TeacherCreate, TeacherRead, PaginatedTeacherResponse, TeacherDetailResponse, PaginatedTeacherSessionResponse
 from app.core.responses import BaseResponse, PaginationMeta
 from app.modules.teacher.service import TeacherService
-from app.core.auth_deps import require_principal
+from app.core.auth_deps import require_principal, require_principal_or_teacher
 from typing import Optional
 
 router = APIRouter(prefix="/teachers", tags=["Teachers"])
@@ -119,7 +119,7 @@ def list_teacher_sessions(
     size: int = Query(10, gt=0),
     search: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    _: dict = Depends(require_principal)
+    _: dict = Depends(require_principal_or_teacher)
 ):
     """
     Mengambil riwayat sesi yang pernah diajarkan guru ini dengan metrik per sesinya

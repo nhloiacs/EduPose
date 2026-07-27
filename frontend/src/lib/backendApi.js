@@ -160,7 +160,16 @@ const applyRequestInterceptors = (config) => {
 
 export const apiRequest = async (config) => {
   const preparedConfig = applyRequestInterceptors(config);
-  const response = await fetch(buildApiUrl(preparedConfig.path, preparedConfig.params), {
+  const url = buildApiUrl(preparedConfig.path, preparedConfig.params);
+  
+  console.log('API Request:', {
+    url,
+    method: preparedConfig.method ?? 'GET',
+    headers: preparedConfig.headers,
+    hasAuth: !!preparedConfig.headers.Authorization,
+  });
+
+  const response = await fetch(url, {
     method: preparedConfig.method ?? 'GET',
     headers: preparedConfig.headers,
     body: preparedConfig.body instanceof FormData
@@ -218,7 +227,12 @@ export const checkBackendHealth = async () => {
 };
 
 export const listCollection = (resourcePath, token, params = {}) => {
-  const normalizedPath = resourcePath.endsWith('/') ? resourcePath : `${resourcePath}/`;
+  let normalizedPath = resourcePath.startsWith('/') ? resourcePath : `/${resourcePath}`;
+
+  const pathSegments = normalizedPath.split('/').filter(Boolean);
+  if (!normalizedPath.endsWith('/') && pathSegments.length === 1) {
+    normalizedPath += '/';
+  }
 
   return apiRequest({
     path: normalizedPath,
