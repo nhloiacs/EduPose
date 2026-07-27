@@ -354,6 +354,26 @@ export const getClassroomSessionDetail = (sessionId, token) =>
   apiRequest({ path: `/classroom-sessions/${sessionId}`, method: 'GET', token })
     .then((payload) => normalizeBaseResponse(payload));
 
+export const registerStudentPose = (sessionId, token, studentId) =>
+  apiRequest({
+    path: `/classroom-sessions/${sessionId}/register-student`,
+    method: 'POST',
+    token,
+    body: studentId ? { student_id: studentId } : undefined,
+  }).then((payload) => normalizeBaseResponse(payload));
+
+export const startEvaluation = (sessionId, token) =>
+  apiRequest({ path: `/classroom-sessions/${sessionId}/start-eval`, method: 'POST', token })
+    .then((payload) => normalizeBaseResponse(payload));
+
+export const endEvaluation = (sessionId, token) =>
+  apiRequest({ path: `/classroom-sessions/${sessionId}/end-eval`, method: 'POST', token })
+    .then((payload) => normalizeBaseResponse(payload));
+
+export const endClassroomSession = (sessionId, token) =>
+  apiRequest({ path: `/classroom-sessions/${sessionId}/end`, method: 'POST', token })
+    .then((payload) => normalizeBaseResponse(payload));
+
 export const getClassroomStudents = (classroomId, token, params = {}) =>
   listCollection(`/classrooms/${classroomId}/students`, token, params);
 

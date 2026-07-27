@@ -66,6 +66,10 @@ import {
   getClassroomSessionDetail,
   getClassroomSessions,
   getClassroomStudents,
+    registerStudentPose,
+    startEvaluation,
+    endEvaluation,
+    endClassroomSession,
   getCurrentTeacherProfile,
   getDashboardMetrics,
   getDashboardSummary,
@@ -273,6 +277,9 @@ export default function App() {
   const [sessionDetailLoading, setSessionDetailLoading] = useState(false);
   const [sessionDetailError, setSessionDetailError] = useState('');
   const [isSessionDetailOpen, setIsSessionDetailOpen] = useState(false);
+  const [sessionActionState, setSessionActionState] = useState('idle');
+  const [registerStudentId, setRegisterStudentId] = useState('');
+  const [registerStudentOptions, setRegisterStudentOptions] = useState([]);
   const [classroomPage, setClassroomPage] = useState(1);
   const [classroomList, setClassroomList] = useState([]);
   const [classroomMeta, setClassroomMeta] = useState({ total: 0, page: 1, size: 10 });
@@ -1092,6 +1099,8 @@ export default function App() {
     setSessionDetailLoading(true);
     setIsSessionDetailOpen(true);
     setSessionDetail(null);
+    setRegisterStudentOptions([]);
+    setRegisterStudentId('');
 
     try {
       const response = await getClassroomSessionDetail(sessionId, authToken);
@@ -1099,6 +1108,17 @@ export default function App() {
       setSessionDetail(sessionData);
       if (!sessionData) {
         setSessionDetailError('Data sesi tidak tersedia.');
+      }
+
+      if (sessionData?.classroom_id) {
+        const studentResponse = await getClassroomStudents(sessionData.classroom_id, authToken, { page: 1, size: 50 });
+        const options = Array.isArray(studentResponse.items)
+          ? studentResponse.items.map((student) => ({
+              id: student.id,
+              label: `${student.name}${student.nis ? ` (${student.nis})` : ''}`,
+            }))
+          : [];
+        setRegisterStudentOptions(options);
       }
     } catch (error) {
       setSessionDetailError(error instanceof Error ? error.message : 'Gagal mengambil detail sesi.');
@@ -1112,6 +1132,138 @@ export default function App() {
     setSessionDetail(null);
     setSessionDetailError('');
     setSessionDetailLoading(false);
+  };
+
+  // Session action handlers (teacher actions) - moved outside handleSessionDetail
+  const handleRegisterStudentPose = async (sessionId) => {
+    if (!authToken) {
+      setBackendMessage('Silakan login untuk melakukan aksi sesi');
+      return;
+    }
+
+    if (!registerStudentId) {
+      setBackendMessage('Pilih siswa terlebih dahulu sebelum register pose.');
+      return;
+    }
+
+    console.log('RegisterStudentPose clicked', sessionId, registerStudentId);
+    setBackendMessage('Mendaftarkan pose siswa...');
+    setSessionActionState('loading');
+    try {
+      const resp = await registerStudentPose(sessionId, authToken, registerStudentId);
+      console.log('registerStudentPose resp', resp);
+      const data = resp.data ?? null;
+      if (data && sessionDetail) {
+        setSessionDetail((prev) => ({
+          ...prev,
+          present_count: data.present_count,
+          absent_count: data.absent_count,
+        }));
+      }
+      setBackendMessage(resp.message || 'Register student pose selesai');
+    } catch (err) {
+      console.error(err);
+      setBackendMessage(err instanceof Error ? err.message : 'Gagal register student pose');
+    } finally {
+      setSessionActionState('idle');
+    }
+  };
+
+  const handleStartEvaluation = async (sessionId) => {
+    if (!authToken) {
+      setBackendMessage('Silakan login untuk melakukan aksi sesi');
+      return;
+    }
+    console.log('StartEvaluation clicked', sessionId);
+    setBackendMessage('Memulai evaluasi...');
+    setSessionActionState('loading');
+    try {
+      // Ensure camera stream is active by calling monitor endpoint (non-blocking)
+      try {
+        fetch(`${API_BASE_URL}/stream/monitor/${sessionId}`).catch(() => {});
+      } catch (e) {
+        // ignore
+      }
+      // small delay to allow stream to initialize on backend
+      await new Promise((r) => setTimeout(r, 800));
+      const resp = await startEvaluation(sessionId, authToken);
+      console.log('startEvaluation resp', resp);
+      setBackendMessage(resp.message || String(resp.data ?? 'Evaluation started'));
+    } catch (err) {
+      console.error(err);
+      setBackendMessage(err instanceof Error ? err.message : 'Gagal start evaluation');
+    } finally {
+      setSessionActionState('idle');
+    }
+  };
+
+  const handleEndEvaluation = async (sessionId) => {
+    if (!authToken) {
+      setBackendMessage('Silakan login untuk melakukan aksi sesi');
+      return;
+    }
+    console.log('EndEvaluation clicked', sessionId);
+    setBackendMessage('Mengakhiri evaluasi...');
+    setSessionActionState('loading');
+    try {
+      const resp = await endEvaluation(sessionId, authToken);
+      console.log('endEvaluation resp', resp);
+      setBackendMessage(resp.message || String(resp.data ?? 'Evaluation ended'));
+    } catch (err) {
+      console.error(err);
+      setBackendMessage(err instanceof Error ? err.message : 'Gagal end evaluation');
+    } finally {
+      setSessionActionState('idle');
+    }
+  };
+
+  const handleEndClassroomSession = async (sessionId) => {
+    if (!authToken) {
+      setBackendMessage('Silakan login untuk melakukan aksi sesi');
+      return;
+    }
+
+    const confirmed = window.confirm('Apakah Anda yakin ingin mengakhiri sesi ini?');
+    if (!confirmed) {
+      setBackendMessage('Aksi batalkan: sesi tidak diakhiri.');
+      return;
+    }
+
+    console.log('EndClassroomSession clicked', sessionId);
+    setBackendMessage('Mengakhiri sesi...');
+    setSessionActionState('loading');
+    try {
+      const resp = await endClassroomSession(sessionId, authToken);
+      console.log('endClassroomSession resp', resp);
+      setBackendMessage(resp.message || String(resp.data ?? 'Session ended'));
+
+      if (sessionDetail && sessionDetail.id === sessionId) {
+        setSessionDetail((prev) => ({
+          ...prev,
+          status: 'ended',
+          end_time: new Date().toISOString(),
+        }));
+      }
+
+      const updatedSessions = sessionList.map((session) =>
+        String(session.id) === String(sessionId)
+          ? { ...session, status: 'ended', end_time: new Date().toISOString() }
+          : session
+      );
+      setBackendSessions(updatedSessions);
+
+      // Refresh the list from backend to keep data in sync
+      const listResp = await listCollection('/classroom-sessions', authToken, {
+        page: 1,
+        size: 10,
+      });
+      setBackendSessions(listResp.items || []);
+    } catch (err) {
+      console.error(err);
+      setBackendMessage(err instanceof Error ? err.message : 'Gagal mengakhiri sesi');
+    } finally {
+      setSessionActionState('idle');
+    }
   };
 
   const handleDeleteStudent = async (student) => {
@@ -1881,22 +2033,67 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Top Performers Chart (from endpoint) */}
-              <div className="dashboard-card" style={{ display: 'flex', flexDirection: 'column' }}>
-                <div className="card-header">
-                  <div>
-                    <h2 className="card-title">Get Top Performers</h2>
-                    <p className="card-subtitle">Endpoint: /dashboard/top-performers/{'{entity}'}</p>
+              {/* Top Performers Charts (from endpoint) */}
+              <div className="dashboard-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <div className="card-header">
+                    <div>
+                      <h2 className="card-title">Top Classroom Performers</h2>
+                      <p className="card-subtitle">Endpoint: /dashboard/top-performers/classroom</p>
+                    </div>
+                  </div>
+                  <div style={{ height: '220px', position: 'relative', display: 'grid', placeItems: 'center' }}>
+                    {topClassroomRankings.length > 0 ? (
+                      <Bar data={reportsClassComparisonData} options={reportsClassComparisonOptions} />
+                    ) : (
+                      <div style={{ color: '#64748b', fontSize: '0.92rem', textAlign: 'center' }}>
+                        Belum ada data top classroom performers dari backend.
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div style={{ height: '220px', position: 'relative', flex: 1, display: 'grid', placeItems: 'center' }}>
-                  {topClassroomRankings.length > 0 ? (
-                    <Bar data={reportsClassComparisonData} options={reportsClassComparisonOptions} />
-                  ) : (
-                    <div style={{ color: '#64748b', fontSize: '0.92rem', textAlign: 'center' }}>
-                      Belum ada data top performers dari backend.
+
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <div className="card-header">
+                    <div>
+                      <h2 className="card-title">Top Student Performers</h2>
+                      <p className="card-subtitle">Endpoint: /dashboard/top-performers/student</p>
                     </div>
-                  )}
+                  </div>
+                  <div style={{ minHeight: '220px', position: 'relative', display: 'grid', placeItems: 'center' }}>
+                    {topStudentPerformers.length > 0 ? (
+                      <Bar
+                        data={{
+                          labels: topStudentPerformers.map((student) => student.name),
+                          datasets: [
+                            {
+                              label: 'Rata-rata Fokus (%)',
+                              data: topStudentPerformers.map((student) => Number(student.avg_focus_percentage ?? student.attention ?? 0)),
+                              backgroundColor: '#10b981',
+                              borderRadius: 8,
+                              barThickness: 24,
+                            },
+                          ],
+                        }}
+                        options={{
+                          responsive: true,
+                          maintainAspectRatio: false,
+                          plugins: {
+                            legend: { display: false },
+                            tooltip: { backgroundColor: '#1e1b4b' },
+                          },
+                          scales: {
+                            y: { min: 0, max: 100, grid: { color: '#f1f5f9' } },
+                            x: { grid: { display: false }, ticks: { color: '#64748b' } },
+                          },
+                        }}
+                      />
+                    ) : (
+                      <div style={{ color: '#64748b', fontSize: '0.92rem', textAlign: 'center' }}>
+                        Belum ada data top student performers dari backend.
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -3021,6 +3218,32 @@ export default function App() {
 
               {sessionDetail && (
                 <div style={{ display: 'grid', gap: '20px' }}>
+                  {currentUser?.role === 'teacher' && (
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      {registerStudentOptions.length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <label htmlFor="register-student-select" style={{ fontWeight: 600, color: '#1e1b4b' }}>Pilih Siswa untuk Register Pose</label>
+                          <select
+                            id="register-student-select"
+                            value={registerStudentId}
+                            onChange={(event) => setRegisterStudentId(event.target.value)}
+                            style={{ minWidth: '220px', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff' }}
+                          >
+                            <option value="">Pilih siswa...</option>
+                            {registerStudentOptions.map((option) => (
+                              <option key={option.id} value={option.id}>{option.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <ActionButton variant="primary" icon={Save} onClick={() => handleRegisterStudentPose(sessionDetail.id)} disabled={sessionActionState === 'loading'}>Register Student Pose</ActionButton>
+                        <ActionButton variant="primary" icon={Save} onClick={() => handleStartEvaluation(sessionDetail.id)} disabled={sessionActionState === 'loading'}>Start Evaluation</ActionButton>
+                        <ActionButton variant="secondary" icon={Save} onClick={() => handleEndEvaluation(sessionDetail.id)} disabled={sessionActionState === 'loading'}>End Evaluation</ActionButton>
+                        <ActionButton variant="danger" icon={Trash2} onClick={() => handleEndClassroomSession(sessionDetail.id)} disabled={sessionActionState === 'loading'}>End Session</ActionButton>
+                      </div>
+                    </div>
+                  )}
                   <div className="modal-detail-card">
                     <div className="modal-detail-row"><span className="modal-detail-label">ID Sesi</span><span className="modal-detail-value">{sessionDetail.id || '-'}</span></div>
                     <div className="modal-detail-row"><span className="modal-detail-label">Nama Kelas</span><span className="modal-detail-value">{sessionDetail.classroom_name || '-'}</span></div>
