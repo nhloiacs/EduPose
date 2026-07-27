@@ -23,6 +23,7 @@ import {
   Eye,
   PencilLine,
   Trash2,
+  Camera,
 } from 'lucide-react';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import logoEdupose from './assets/logo-edupose.png';
@@ -190,6 +191,7 @@ export default function App() {
   const [dashboardSummary, setDashboardSummary] = useState(null);
   const [dailyMetrics, setDailyMetrics] = useState([]);
   const [weeklyMetrics, setWeeklyMetrics] = useState([]);
+  const [metricsByGranularity, setMetricsByGranularity] = useState({ daily: [], weekly: [], monthly: [] });
   const [topClassroomRankings, setTopClassroomRankings] = useState([]);
   const [topStudentPerformers, setTopStudentPerformers] = useState([]);
   const [backendSessions, setBackendSessions] = useState([]);
@@ -435,6 +437,10 @@ export default function App() {
       setActiveTab('sessions');
     }
   }, [currentUser?.role, activeTab]);
+
+  useEffect(() => {
+    setApiAuthToken(authToken);
+  }, [authToken]);
 
   useEffect(() => {
     let isActive = true;
@@ -713,13 +719,19 @@ export default function App() {
         }
 
         if (dailyMetricsResult.status === 'fulfilled') {
-          setDailyMetrics(Array.isArray(dailyMetricsResult.value.data) ? dailyMetricsResult.value.data : []);
+          const daily = Array.isArray(dailyMetricsResult.value.data) ? dailyMetricsResult.value.data : [];
+          // store raw response exactly as returned by endpoint
+          setDailyMetrics(daily);
+          setMetricsByGranularity((prev) => ({ ...prev, daily }));
         } else {
           partialErrors.push('grafik harian');
         }
 
         if (weeklyMetricsResult.status === 'fulfilled') {
-          setWeeklyMetrics(Array.isArray(weeklyMetricsResult.value.data) ? weeklyMetricsResult.value.data : []);
+          const weekly = Array.isArray(weeklyMetricsResult.value.data) ? weeklyMetricsResult.value.data : [];
+          // store raw response exactly as returned by endpoint
+          setWeeklyMetrics(weekly);
+          setMetricsByGranularity((prev) => ({ ...prev, weekly }));
         } else {
           partialErrors.push('grafik mingguan');
         }
@@ -830,7 +842,17 @@ export default function App() {
 
   // Derived Metrics
   const teacherMetrics = dashboardSummary?.metrics_summary ?? null;
+  const isPrincipalUser = currentUser?.role === 'principal';
+  const isTeacherUser = currentUser?.role === 'teacher';
   const totalStudentsCount = dashboardSummary?.total_students ?? students.length;
+  const totalClassroomsCount = dashboardSummary?.total_classrooms ?? backendClassrooms.length;
+  const totalTeachersCount = isPrincipalUser ? (dashboardSummary?.total_teachers ?? backendTeachers.length) : null;
+  const totalSubjectsCount = dashboardSummary?.total_subjects ?? 0;
+  const totalCamerasCount = dashboardSummary?.total_cameras ?? 0;
+  const teacherAvgFocus = teacherMetrics?.avg_focus_percentage ?? 0;
+  const teacherAvgActiveStudents = teacherMetrics?.avg_active_students ?? 0;
+  const teacherUsingPhone = teacherMetrics?.total_using_phone ?? 0;
+  const teacherRaisedHand = teacherMetrics?.total_raised_hand ?? 0;
   const focusedCount = topStudentPerformers.filter(
     (student) => Number(student.avg_focus_percentage ?? student.attention ?? 0) >= 70,
   ).length;
@@ -1717,57 +1739,117 @@ export default function App() {
         {/* Global Summary Cards */}
         {activeTab !== 'reports' && activeTab !== 'profile' && (
           <section className="metrics-grid">
-            <div className="metric-card">
-              <div className="metric-icon-wrapper total">
-                <Users size={22} />
-              </div>
-              <div className="metric-details">
-                <div className="metric-label">Total Siswa</div>
-                <div className="metric-value-container">
-                  <div className="metric-value">{totalStudentsCount}</div>
-                  <div className="metric-change up">{dashboardSummary ? 'Data backend' : 'Belum ada data'}</div>
+            {isPrincipalUser ? (
+              <>
+                <div className="metric-card">
+                  <div className="metric-icon-wrapper total">
+                    <Users size={22} />
+                  </div>
+                  <div className="metric-details">
+                    <div className="metric-label">Total Siswa</div>
+                    <div className="metric-value-container">
+                      <div className="metric-value">{totalStudentsCount}</div>
+                      <div className="metric-change up">{dashboardSummary ? 'Data backend' : 'Belum ada data'}</div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            <div className="metric-card">
-              <div className="metric-icon-wrapper fokus">
-                <CheckCircle size={22} />
-              </div>
-              <div className="metric-details">
-                <div className="metric-label">Fokus</div>
-                <div className="metric-value-container">
-                  <div className="metric-value">{focusedCount}</div>
-                  <div className="metric-change up">{averageAttention ? `${averageAttention}% rata-rata` : 'Belum ada data'}</div>
+                <div className="metric-card">
+                  <div className="metric-icon-wrapper fokus">
+                    <Video size={22} />
+                  </div>
+                  <div className="metric-details">
+                    <div className="metric-label">Total Kelas</div>
+                    <div className="metric-value-container">
+                      <div className="metric-value">{totalClassroomsCount}</div>
+                      <div className="metric-change up">{dashboardSummary ? 'Data backend' : 'Belum ada data'}</div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            <div className="metric-card">
-              <div className="metric-icon-wrapper tidak-fokus">
-                <XCircle size={22} />
-              </div>
-              <div className="metric-details">
-                <div className="metric-label">Tidak Fokus</div>
-                <div className="metric-value-container">
-                  <div className="metric-value">{unfocusedCount}</div>
-                  <div className="metric-change down">{teacherMetrics ? `${teacherMetrics.total_using_phone} HP` : 'Data backend'}</div>
+                <div className="metric-card">
+                  <div className="metric-icon-wrapper tidak-fokus">
+                    <Users size={22} />
+                  </div>
+                  <div className="metric-details">
+                    <div className="metric-label">Total Guru</div>
+                    <div className="metric-value-container">
+                      <div className="metric-value">{totalTeachersCount}</div>
+                      <div className="metric-change down">{dashboardSummary ? 'Data backend' : 'Belum ada data'}</div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            <div className="metric-card">
-              <div className="metric-icon-wrapper peringatan">
-                <AlertTriangle size={22} />
-              </div>
-              <div className="metric-details">
-                <div className="metric-label">Peringatan</div>
-                <div className="metric-value-container">
-                  <div className="metric-value">{alertCount}</div>
-                  <div className="metric-change up">{hasWarnings ? 'Perlu perhatian' : 'Aman'}</div>
+                <div className="metric-card">
+                  <div className="metric-icon-wrapper peringatan">
+                    <BookOpen size={22} />
+                  </div>
+                  <div className="metric-details">
+                    <div className="metric-label">Total Mapel</div>
+                    <div className="metric-value-container">
+                      <div className="metric-value">{totalSubjectsCount}</div>
+                      <div className="metric-change up">{dashboardSummary ? 'Data backend' : 'Belum ada data'}</div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              </>
+            ) : (
+              <>
+                <div className="metric-card">
+                  <div className="metric-icon-wrapper fokus">
+                    <Video size={22} />
+                  </div>
+                  <div className="metric-details">
+                    <div className="metric-label">Total Kelas Diajarkan</div>
+                    <div className="metric-value-container">
+                      <div className="metric-value">{totalClassroomsCount}</div>
+                      <div className="metric-change up">{dashboardSummary ? 'Data backend' : 'Belum ada data'}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="metric-card">
+                  <div className="metric-icon-wrapper total">
+                    <Users size={22} />
+                  </div>
+                  <div className="metric-details">
+                    <div className="metric-label">Total Siswa</div>
+                    <div className="metric-value-container">
+                      <div className="metric-value">{totalStudentsCount}</div>
+                      <div className="metric-change up">{dashboardSummary ? 'Data backend' : 'Belum ada data'}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="metric-card">
+                  <div className="metric-icon-wrapper peringatan">
+                    <BookOpen size={22} />
+                  </div>
+                  <div className="metric-details">
+                    <div className="metric-label">Total Mapel Unik</div>
+                    <div className="metric-value-container">
+                      <div className="metric-value">{totalSubjectsCount}</div>
+                      <div className="metric-change up">{dashboardSummary ? 'Data backend' : 'Belum ada data'}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="metric-card">
+                  <div className="metric-icon-wrapper peringatan">
+                    <TrendingUp size={22} />
+                  </div>
+                  <div className="metric-details">
+                    <div className="metric-label">Performa Metrik Kelas</div>
+                    <div className="metric-value-container" style={{ gap: '8px', flexDirection: 'column', alignItems: 'flex-start' }}>
+                      <div className="metric-value">{teacherAvgFocus.toFixed(1)}%</div>
+                      <div className="metric-change up">Aktif: {teacherAvgActiveStudents}</div>
+                      <div className="metric-change down">HP: {teacherUsingPhone}</div>
+                      <div className="metric-change up">Angkat tangan: {teacherRaisedHand}</div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </section>
         )}
 
@@ -1779,13 +1861,13 @@ export default function App() {
               {/* Daily Attention Trend Line Chart */}
               <div className="dashboard-card">
                 <div className="card-header">
-                  <div>
-                    <h2 className="card-title">Tren Atensi Harian</h2>
-                    <p className="card-subtitle">Grafik rata-rata tingkat kefokusan siswa sepanjang hari ini</p>
+                    <div>
+                      <h2 className="card-title">Get Metrics</h2>
+                      <p className="card-subtitle">Endpoint: /dashboard/metrics (granularity=daily)</p>
 
-              {/* backend status moved to header-actions */}
+                {/* backend status moved to header-actions */}
+                    </div>
                   </div>
-                </div>
                 <div style={{ height: '280px', position: 'relative', display: 'grid', placeItems: 'center' }}>
                   {isInitialLoading ? (
                     <div style={{ color: '#64748b', fontSize: '0.92rem' }}>Memuat grafik dari backend...</div>
@@ -1799,116 +1881,40 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Emotion Donut Chart */}
+              {/* Top Performers Chart (from endpoint) */}
               <div className="dashboard-card" style={{ display: 'flex', flexDirection: 'column' }}>
                 <div className="card-header">
                   <div>
-                    <h2 className="card-title">Distribusi Emosi</h2>
-                    <p className="card-subtitle">Persentase ekspresi siswa terdeteksi</p>
+                    <h2 className="card-title">Get Top Performers</h2>
+                    <p className="card-subtitle">Endpoint: /dashboard/top-performers/{'{entity}'}</p>
                   </div>
                 </div>
-                <div style={{ height: '180px', position: 'relative', flex: 1, display: 'grid', placeItems: 'center' }}>
-                  {hasEmotionChartData ? (
-                    <Doughnut data={emotionDistributionData} options={emotionDonutOptions} />
+                <div style={{ height: '220px', position: 'relative', flex: 1, display: 'grid', placeItems: 'center' }}>
+                  {topClassroomRankings.length > 0 ? (
+                    <Bar data={reportsClassComparisonData} options={reportsClassComparisonOptions} />
                   ) : (
                     <div style={{ color: '#64748b', fontSize: '0.92rem', textAlign: 'center' }}>
-                      Belum ada data emosi dari backend.
+                      Belum ada data top performers dari backend.
                     </div>
                   )}
                 </div>
-                
-                {/* Custom Styled Legends */}
-                {hasEmotionChartData ? (
-                  <div className="custom-legend">
-                    {emotionDistributionData.labels.map((label, idx) => (
-                      <div key={label} className="legend-item">
-                        <span 
-                          className="legend-color" 
-                          style={{ backgroundColor: emotionDistributionData.datasets[0].backgroundColor[idx] }}
-                        />
-                        <span>{label}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
               </div>
 
             </div>
 
             <div className="dashboard-grid">
-              
-              {/* Weekly Bar Chart */}
-              <div className="dashboard-card">
+              {/* Warnings Panel */}
+              <div className="dashboard-card" style={{ width: '100%' }}>
                 <div className="card-header">
                   <div>
-                    <h2 className="card-title">Atensi Mingguan</h2>
-                    <p className="card-subtitle">Perbandingan status fokus harian</p>
+                    <h2 className="card-title">Get Dashboard Warnings</h2>
+                    <p className="card-subtitle">Endpoint: /dashboard/warnings/{'{entity}'} (threshold)</p>
                   </div>
                 </div>
-                <div style={{ height: '280px', position: 'relative', display: 'grid', placeItems: 'center' }}>
-                  {isInitialLoading ? (
-                    <div style={{ color: '#64748b', fontSize: '0.92rem' }}>Memuat grafik mingguan...</div>
-                  ) : hasWeeklyMetrics ? (
-                    <Bar data={weeklyAttentionData} options={weeklyAttentionOptions} />
-                  ) : (
-                    <div style={{ color: '#64748b', fontSize: '0.92rem', textAlign: 'center' }}>
-                      Belum ada data mingguan dari backend.
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Class Rankings & Recent Warnings in sidebar block */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                
-                {/* Class Rankings */}
-                <div className="dashboard-card">
-                  <div className="card-header">
-                    <div>
-                      <h2 className="card-title">Peringkat Kelas</h2>
-                      <p className="card-subtitle">Tingkat atensi tertinggi per kelas</p>
-                    </div>
-                  </div>
-                  <div className="rankings-list">
-                    {classStats.length > 0 ? (
-                      classStats.map((item, idx) => (
-                        <div className="rank-item" key={item.name}>
-                          <span className="rank-number">#{idx + 1}</span>
-                          <span className="rank-name">{item.name}</span>
-                          <div className="rank-progress-container">
-                            <div 
-                              className="rank-progress-bar" 
-                              style={{ 
-                                width: `${Math.min(100, item.value)}%`,
-                                backgroundColor: idx === 0 ? '#10b981' : (idx < 3 ? '#6366f1' : '#f59e0b')
-                              }}
-                            />
-                          </div>
-                          <span className="rank-percentage">{item.value}</span>
-                          <span className="rank-trend">
-                            <TrendingUp size={14} color="#10b981" />
-                          </span>
-                        </div>
-                      ))
-                    ) : (
-                      <div style={{ color: '#64748b', fontSize: '0.92rem' }}>
-                        Belum ada data kelas dari backend.
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Recent Warnings */}
-                <div className="dashboard-card">
-                  <div className="card-header">
-                    <div>
-                      <h2 className="card-title">Peringatan Terbaru</h2>
-                      <p className="card-subtitle">Deteksi atensi kritis siswa</p>
-                    </div>
-                  </div>
+                <div style={{ minHeight: '160px' }}>
                   <div className="warnings-list">
-                    {warnings.slice(0, 3).length > 0 ? (
-                      warnings.slice(0, 3).map(w => (
+                    {warnings.length > 0 ? (
+                      warnings.slice(0, 10).map((w) => (
                         <div className="warning-item" key={w.id}>
                           <div className="warning-content">
                             <div className="warning-student">{w.name}</div>
@@ -1927,9 +1933,7 @@ export default function App() {
                     )}
                   </div>
                 </div>
-
               </div>
-
             </div>
           </div>
         )}
