@@ -339,6 +339,25 @@ export const getCameraOptions = (token) =>
   apiRequest({ path: '/cameras/select', method: 'GET', token })
     .then((payload) => normalizeBaseResponse(payload));
 
+export const getCameraList = (token, params = {}) =>
+  listCollection('/cameras', token, params);
+
+export const getCameraDetail = (cameraId, token) =>
+  apiRequest({ path: `/cameras/${cameraId}`, method: 'GET', token })
+    .then((payload) => normalizeBaseResponse(payload));
+
+export const createCamera = (camera, token) =>
+  apiRequest({ path: '/cameras/', method: 'POST', token, body: camera })
+    .then((payload) => normalizeBaseResponse(payload));
+
+export const updateCamera = (cameraId, camera, token) =>
+  apiRequest({ path: `/cameras/${cameraId}`, method: 'PATCH', token, body: camera })
+    .then((payload) => normalizeBaseResponse(payload));
+
+export const deleteCamera = (cameraId, token) =>
+  apiRequest({ path: `/cameras/${cameraId}`, method: 'DELETE', token })
+    .then((payload) => normalizeBaseResponse(payload));
+
 export const getClassroomDetail = (classroomId, token) =>
   apiRequest({ path: `/classrooms/${classroomId}`, method: 'GET', token })
     .then((payload) => normalizeBaseResponse(payload));

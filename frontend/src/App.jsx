@@ -61,6 +61,11 @@ import {
   getAllTeachers,
   getAverageFocusFromMetrics,
   getCameraOptions,
+  getCameraList,
+  getCameraDetail,
+  createCamera,
+  updateCamera,
+  deleteCamera,
   getClassroomDetail,
   getClassroomOptions,
   getClassroomSessionDetail,
@@ -264,6 +269,20 @@ export default function App() {
   const [studentFormMessage, setStudentFormMessage] = useState('');
   const [classroomOptions, setClassroomOptions] = useState([]);
   const [cameraOptions, setCameraOptions] = useState([]);
+  const [cameraList, setCameraList] = useState([]);
+  const [cameraMeta, setCameraMeta] = useState({ total: 0, page: 1, size: 10 });
+  const [cameraPage, setCameraPage] = useState(1);
+  const [cameraLoading, setCameraLoading] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const [cameraForm, setCameraForm] = useState({ name: '', endpoint: '', status: 'active' });
+  const [editingCameraId, setEditingCameraId] = useState(null);
+  const [isCameraFormOpen, setIsCameraFormOpen] = useState(false);
+  const [cameraFormError, setCameraFormError] = useState('');
+  const [cameraFormMessage, setCameraFormMessage] = useState('');
+  const [cameraDetail, setCameraDetail] = useState(null);
+  const [cameraDetailLoading, setCameraDetailLoading] = useState(false);
+  const [cameraDetailError, setCameraDetailError] = useState('');
+  const [isCameraDetailOpen, setIsCameraDetailOpen] = useState(false);
   const [sessionForm, setSessionForm] = useState({ classroom_id: '', camera_id: '', subject: '' });
   const [isSessionFormOpen, setIsSessionFormOpen] = useState(false);
   const [sessionFormError, setSessionFormError] = useState('');
@@ -481,9 +500,7 @@ export default function App() {
     getClassroomOptions(authToken)
       .then((response) => setClassroomOptions(Array.isArray(response.data) ? response.data : []))
       .catch(() => setClassroomOptions([]));
-    getCameraOptions(authToken)
-      .then((response) => setCameraOptions(Array.isArray(response.data) ? response.data : []))
-      .catch(() => setCameraOptions([]));
+    reloadCameraOptions();
   }, [authToken]);
 
   useEffect(() => {
@@ -502,6 +519,28 @@ export default function App() {
     loadClassrooms();
     return () => { isActive = false; };
   }, [activeTab, authToken, classroomPage, searchQuery]);
+
+  useEffect(() => {
+    if (!authToken || activeTab !== 'cameras') return undefined;
+    let isActive = true;
+    const loadCameras = async () => {
+      setCameraLoading(true);
+      setCameraError('');
+      try {
+        const response = await getCameraList(authToken, { page: cameraPage, size: 10, search: searchQuery.trim() });
+        if (isActive) {
+          setCameraList(response.items);
+          setCameraMeta(response.meta);
+        }
+      } catch (error) {
+        if (isActive) setCameraError(error instanceof Error ? error.message : 'Gagal mengambil daftar kamera.');
+      } finally {
+        if (isActive) setCameraLoading(false);
+      }
+    };
+    loadCameras();
+    return () => { isActive = false; };
+  }, [activeTab, authToken, cameraPage, searchQuery]);
 
   useEffect(() => {
     if (!authToken || activeTab !== 'teachers') return undefined;
@@ -1337,6 +1376,41 @@ export default function App() {
     setBackendClassrooms(options);
   };
 
+  const reloadCameraOptions = async () => {
+    if (!authToken) {
+      setCameraOptions([]);
+      return;
+    }
+
+    const normalizeOption = (camera) => ({
+      id: camera?.id ?? '',
+      name: camera?.name ?? String(camera?.id ?? ''),
+    });
+
+    const [selectResult, listResult] = await Promise.allSettled([
+      getCameraOptions(authToken),
+      getCameraList(authToken, { page: 1, size: 100 }),
+    ]);
+
+    const selectOptions = selectResult.status === 'fulfilled' && Array.isArray(selectResult.value.data)
+      ? selectResult.value.data.map(normalizeOption)
+      : [];
+
+    const listOptions = listResult.status === 'fulfilled' && Array.isArray(listResult.value.items)
+      ? listResult.value.items.map(normalizeOption)
+      : [];
+
+    const mergedOptionsById = new Map();
+    [...listOptions, ...selectOptions].forEach((opt) => {
+      if (!opt.id) return;
+      if (!mergedOptionsById.has(opt.id)) {
+        mergedOptionsById.set(opt.id, opt);
+      }
+    });
+
+    setCameraOptions(Array.from(mergedOptionsById.values()));
+  };
+
   const resetClassroomForm = () => {
     setClassroomForm({ name: '' });
     setEditingClassroomId(null);
@@ -1432,6 +1506,111 @@ export default function App() {
     }
   };
 
+  const resetCameraForm = () => {
+    setCameraForm({ name: '', endpoint: '', status: 'active' });
+    setEditingCameraId(null);
+    setCameraFormError('');
+    setCameraFormMessage('');
+    setIsCameraFormOpen(false);
+  };
+
+  const openCameraForm = (camera = null) => {
+    if (camera) {
+      setEditingCameraId(camera.id);
+      setCameraForm({ name: camera.name || '', endpoint: camera.endpoint || '', status: camera.status || 'active' });
+      setCameraFormMessage('');
+      setCameraFormError('');
+      setIsCameraFormOpen(true);
+      return;
+    }
+    resetCameraForm();
+    setIsCameraFormOpen(true);
+  };
+
+  const handleCameraSubmit = async (event) => {
+    event.preventDefault();
+    setCameraFormError('');
+    setCameraFormMessage('');
+
+    if (!cameraForm.name || !cameraForm.endpoint) {
+      setCameraFormError('Nama kamera dan endpoint wajib diisi.');
+      return;
+    }
+
+    try {
+      const payload = {
+        name: cameraForm.name,
+        endpoint: cameraForm.endpoint,
+      };
+      if (editingCameraId) {
+        payload.status = cameraForm.status;
+        const response = await updateCamera(editingCameraId, payload, authToken);
+        setCameraFormMessage(response.message || 'Kamera berhasil diperbarui.');
+      } else {
+        const response = await createCamera(payload, authToken);
+        setCameraFormMessage(response.message || 'Kamera berhasil dibuat.');
+      }
+      resetCameraForm();
+      setCameraPage(1);
+      const listResponse = await getCameraList(authToken, { page: 1, size: 10, search: searchQuery.trim() });
+      setCameraList(listResponse.items);
+      setCameraMeta(listResponse.meta);
+      await reloadCameraOptions();
+    } catch (error) {
+      setCameraFormError(error instanceof Error ? error.message : 'Gagal menyimpan data kamera.');
+    }
+  };
+
+  const startEditCamera = async (camera) => {
+    setCameraDetailLoading(true);
+    setCameraDetailError('');
+    try {
+      const response = await getCameraDetail(camera.id, authToken);
+      const data = response.data ?? camera;
+      setCameraForm({ name: data.name || camera.name || '', endpoint: data.endpoint || camera.endpoint || '', status: data.status || 'active' });
+      setEditingCameraId(camera.id);
+      setIsCameraFormOpen(true);
+    } catch (error) {
+      setCameraDetailError(error instanceof Error ? error.message : 'Gagal memuat detail kamera.');
+    } finally {
+      setCameraDetailLoading(false);
+    }
+  };
+
+  const handleViewCameraDetail = async (camera) => {
+    setCameraDetailLoading(true);
+    setCameraDetailError('');
+    setCameraDetail(null);
+    setIsCameraDetailOpen(true);
+    try {
+      const response = await getCameraDetail(camera.id, authToken);
+      setCameraDetail(response.data ?? camera);
+    } catch (error) {
+      setCameraDetailError(error instanceof Error ? error.message : 'Gagal memuat detail kamera.');
+    } finally {
+      setCameraDetailLoading(false);
+    }
+  };
+
+  const closeCameraDetail = () => {
+    setIsCameraDetailOpen(false);
+    setCameraDetail(null);
+    setCameraDetailError('');
+  };
+
+  const handleDeleteCamera = async (camera) => {
+    if (!window.confirm(`Hapus kamera ${camera.name}?`)) return;
+    setCameraError('');
+    try {
+      await deleteCamera(camera.id, authToken);
+      setCameraList((prev) => prev.filter((item) => String(item.id) !== String(camera.id)));
+      setCameraMeta((prev) => ({ ...prev, total: Math.max(0, prev.total - 1) }));
+      await reloadCameraOptions();
+    } catch (error) {
+      setCameraError(error instanceof Error ? error.message : 'Gagal menghapus kamera.');
+    }
+  };
+
   const resetSessionForm = () => {
     setSessionForm({ classroom_id: '', camera_id: '', subject: '' });
     setSessionFormError('');
@@ -1439,8 +1618,9 @@ export default function App() {
     setIsSessionFormOpen(false);
   };
 
-  const openSessionForm = () => {
+  const openSessionForm = async () => {
     resetSessionForm();
+    await reloadCameraOptions();
     setIsSessionFormOpen(true);
   };
 
@@ -1661,14 +1841,16 @@ export default function App() {
   });
   const studentTotalPages = Math.max(1, Math.ceil(studentMeta.total / studentMeta.size));
   const isLegacyEmbeddedFormVisible = activeTab === 'legacy-embedded-form';
-  const showSearchBar = ['students', 'classrooms', 'teachers', 'sessions'].includes(activeTab);
+  const showSearchBar = ['students', 'classrooms', 'teachers', 'sessions', 'cameras'].includes(activeTab);
   const searchPlaceholder = activeTab === 'students'
     ? 'Cari siswa, kelas, atau atensi...'
     : activeTab === 'classrooms'
       ? 'Cari nama classroom...'
       : activeTab === 'sessions'
         ? 'Cari sesi, kelas, guru, atau kamera...'
-        : 'Cari teacher, NIP, atau email...';
+        : activeTab === 'cameras'
+          ? 'Cari nama kamera atau endpoint...'
+          : 'Cari teacher, NIP, atau email...';
   if (!authToken) {
     return (
       <LoginPage
@@ -1711,6 +1893,16 @@ export default function App() {
             <Video size={20} />
             <span className="menu-label">Live</span>
           </button>
+
+          {currentUser?.role === 'principal' && (
+            <button
+              className={`menu-item ${activeTab === 'cameras' ? 'active' : ''}`}
+              onClick={() => setActiveTab('cameras')}
+            >
+              <Camera size={20} />
+              <span className="menu-label">Kamera</span>
+            </button>
+          )}
 
           {currentUser?.role === 'principal' && (
             <button
@@ -1940,6 +2132,19 @@ export default function App() {
                     <div className="metric-label">Total Mapel</div>
                     <div className="metric-value-container">
                       <div className="metric-value">{totalSubjectsCount}</div>
+                      <div className="metric-change up">{dashboardSummary ? 'Data backend' : 'Belum ada data'}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="metric-card">
+                  <div className="metric-icon-wrapper fokus">
+                    <Camera size={22} />
+                  </div>
+                  <div className="metric-details">
+                    <div className="metric-label">Total Kamera</div>
+                    <div className="metric-value-container">
+                      <div className="metric-value">{totalCamerasCount}</div>
                       <div className="metric-change up">{dashboardSummary ? 'Data backend' : 'Belum ada data'}</div>
                     </div>
                   </div>
@@ -2419,6 +2624,73 @@ export default function App() {
               <button type="button" className="pagination-button" disabled={sessionPage >= Math.max(1, Math.ceil(sessionMeta.total / sessionMeta.size))} onClick={() => setSessionPage((page) => page + 1)}>Berikutnya</button>
             </div>
 
+          </div>
+        )}
+
+        {activeTab === 'cameras' && (
+          <div className="view-panel">
+            <div className="table-header-section">
+              <h2 className="card-title" style={{ fontSize: '1.2rem' }}>Daftar Kamera</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <span style={{ color: '#64748b' }}>{cameraMeta.total} kamera tersinkron</span>
+                <button type="button" className="btn-primary" onClick={() => openCameraForm()}>
+                  <Plus size={18} />
+                  <span>Tambah Kamera</span>
+                </button>
+              </div>
+            </div>
+            {cameraError && <p role="alert" style={{ color: '#b91c1c' }}>{cameraError}</p>}
+            <div className="student-table-card">
+              <table className="student-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Nama Kamera</th>
+                    <th>Endpoint</th>
+                    <th>Status</th>
+                    <th>Last Ping</th>
+                    <th>Dibuat</th>
+                    <th style={{ textAlign: 'right' }}>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cameraLoading ? (
+                    <tr>
+                      <td colSpan={7} style={{ textAlign: 'center', padding: '32px' }}>Memuat kamera...</td>
+                    </tr>
+                  ) : cameraList.length > 0 ? (
+                    cameraList.map((camera, index) => (
+                      <tr key={camera.id}>
+                        <td>{(cameraMeta.page - 1) * cameraMeta.size + index + 1}</td>
+                        <td>{camera.name || '-'}</td>
+                        <td>{camera.endpoint || '-'}</td>
+                        <td>{camera.status || '-'}</td>
+                        <td>{formatDateTimeLabel(camera.last_ping_at)}</td>
+                        <td>{formatDateTimeLabel(camera.created_at)}</td>
+                        <td style={{ textAlign: 'right' }}>
+                          <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                            <ActionButton variant="detail" icon={Eye} onClick={() => handleViewCameraDetail(camera)}>Detail</ActionButton>
+                            <ActionButton variant="edit" icon={PencilLine} onClick={() => openCameraForm(camera)}>Ubah</ActionButton>
+                            <ActionButton variant="delete" icon={Trash2} onClick={() => handleDeleteCamera(camera)}>Hapus</ActionButton>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={7} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
+                        {searchQuery.trim() ? 'Tidak ada kamera yang cocok dengan pencarian.' : 'Belum ada kamera.'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="pagination-row">
+              <button type="button" className="pagination-button" disabled={cameraPage <= 1} onClick={() => setCameraPage((page) => page - 1)}>Sebelumnya</button>
+              <span className="pagination-label">Halaman {cameraMeta.page} dari {Math.max(1, Math.ceil(cameraMeta.total / cameraMeta.size))}</span>
+              <button type="button" className="pagination-button" disabled={cameraPage >= Math.max(1, Math.ceil(cameraMeta.total / cameraMeta.size))} onClick={() => setCameraPage((page) => page + 1)}>Berikutnya</button>
+            </div>
           </div>
         )}
 
@@ -3109,6 +3381,79 @@ export default function App() {
                   <button type="button" className="modal-cancel-btn" onClick={resetSessionForm}>Batal</button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {isCameraFormOpen && (
+          <div className="modal-backdrop" role="presentation" onClick={resetCameraForm}>
+            <div className="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-labelledby="camera-form-modal-title" onClick={(event) => event.stopPropagation()}>
+              <div className="modal-header">
+                <div>
+                  <h3 id="camera-form-modal-title" className="modal-title">{editingCameraId ? 'Ubah Kamera' : 'Tambah Kamera'}</h3>
+                  <p className="modal-subtitle">Kelola endpoint kamera yang tersambung ke sistem.</p>
+                </div>
+                <button type="button" className="modal-close" aria-label="Tutup form kamera" onClick={resetCameraForm}>
+                  <XCircle size={20} />
+                </button>
+              </div>
+              {cameraFormError && <p role="alert" style={{ color: '#b91c1c', marginBottom: '16px' }}>{cameraFormError}</p>}
+              {cameraFormMessage && <p style={{ color: '#047857', marginBottom: '16px' }}>{cameraFormMessage}</p>}
+              <form onSubmit={handleCameraSubmit}>
+                <div className="profile-fields-grid">
+                  <div className="profile-field-group">
+                    <label>Nama Kamera</label>
+                    <input required value={cameraForm.name} onChange={(e) => setCameraForm({ ...cameraForm, name: e.target.value })} />
+                  </div>
+                  <div className="profile-field-group">
+                    <label>Endpoint</label>
+                    <input required value={cameraForm.endpoint} onChange={(e) => setCameraForm({ ...cameraForm, endpoint: e.target.value })} />
+                  </div>
+                  {editingCameraId && (
+                    <div className="profile-field-group">
+                      <label>Status</label>
+                      <select value={cameraForm.status} onChange={(e) => setCameraForm({ ...cameraForm, status: e.target.value })}>
+                        <option value="active">active</option>
+                        <option value="inactive">inactive</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+                <div className="modal-actions">
+                  <button disabled={cameraDetailLoading} type="submit" className="btn-primary">{cameraDetailLoading ? 'Menyimpan...' : editingCameraId ? 'Simpan Kamera' : 'Buat Kamera'}</button>
+                  <button type="button" className="modal-cancel-btn" onClick={resetCameraForm}>Batal</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {isCameraDetailOpen && (
+          <div className="modal-backdrop" role="presentation" onClick={closeCameraDetail}>
+            <div className="modal-card modal-card--wide" role="dialog" aria-modal="true" aria-labelledby="camera-detail-modal-title" onClick={(event) => event.stopPropagation()}>
+              <div className="modal-header">
+                <div>
+                  <h3 id="camera-detail-modal-title" className="modal-title">Detail Kamera</h3>
+                  <p className="modal-subtitle">Informasi kamera lengkap sesuai endpoint detail.</p>
+                </div>
+                <button type="button" className="modal-close" aria-label="Tutup detail kamera" onClick={closeCameraDetail}>
+                  <XCircle size={20} />
+                </button>
+              </div>
+              {cameraDetailLoading && (
+                <div style={{ padding: '20px', color: '#64748b' }}>Memuat detail kamera...</div>
+              )}
+              {cameraDetailError && <p role="alert" style={{ color: '#b91c1c' }}>{cameraDetailError}</p>}
+              {cameraDetail && !cameraDetailLoading && (
+                <div className="modal-detail-card">
+                  <div className="modal-detail-row"><span className="modal-detail-label">ID</span><span className="modal-detail-value">{cameraDetail.id || '-'}</span></div>
+                  <div className="modal-detail-row"><span className="modal-detail-label">Nama</span><span className="modal-detail-value">{cameraDetail.name || '-'}</span></div>
+                  <div className="modal-detail-row"><span className="modal-detail-label">Endpoint</span><span className="modal-detail-value">{cameraDetail.endpoint || '-'}</span></div>
+                  <div className="modal-detail-row"><span className="modal-detail-label">Status</span><span className="modal-detail-value">{cameraDetail.status || '-'}</span></div>
+                  <div className="modal-detail-row"><span className="modal-detail-label">Last Ping</span><span className="modal-detail-value">{formatDateTimeLabel(cameraDetail.last_ping_at)}</span></div>
+                  <div className="modal-detail-row"><span className="modal-detail-label">Dibuat pada</span><span className="modal-detail-value">{formatDateTimeLabel(cameraDetail.created_at)}</span></div>
+                </div>
+              )}
             </div>
           </div>
         )}
