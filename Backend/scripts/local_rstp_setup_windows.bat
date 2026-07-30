@@ -37,6 +37,7 @@ REM seperti VLC; FFmpeg hanya mem-publish video ke MediaMTX.
 :RUN_STREAM
 set "MEDIAMTX_DIR=C:\mediamtx"
 set "MEDIAMTX_EXE=%MEDIAMTX_DIR%\mediamtx.exe"
+set "MEDIAMTX_CONFIG=%MEDIAMTX_DIR%\edupose-mediamtx.yml"
 
 netstat -ano | findstr /R /C:":8554 .*LISTENING" >nul
 if not errorlevel 1 goto :PUBLISH_STREAM
@@ -52,8 +53,19 @@ if not exist "%MEDIAMTX_EXE%" (
     )
 )
 
+REM Paksa RTSP melalui TCP. Ini menghindari kegagalan RTP/UDP pada VLC atau firewall Windows.
+(
+    echo rtspTransports: [tcp]
+    echo hls: yes
+    echo hlsAddress: :8888
+    echo paths:
+    echo   cam:
+    echo     source: publisher
+) > "%MEDIAMTX_CONFIG%"
+
 echo [INFO] Menjalankan MediaMTX RTSP server pada port 8554...
-start "MediaMTX RTSP Server" /D "%MEDIAMTX_DIR%" "%MEDIAMTX_EXE%"
+echo [INFO] RTSP dipaksa memakai TCP; HLS tersedia di http://127.0.0.1:8888/cam/index.m3u8
+start "MediaMTX RTSP Server" /D "%MEDIAMTX_DIR%" "%MEDIAMTX_EXE%" "%MEDIAMTX_CONFIG%"
 timeout /t 2 /nobreak >nul
 
 netstat -ano | findstr /R /C:":8554 .*LISTENING" >nul

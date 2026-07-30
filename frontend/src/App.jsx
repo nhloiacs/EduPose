@@ -278,6 +278,7 @@ export default function App() {
   const [selectedStreamSessionId, setSelectedStreamSessionId] = useState('');
   const [streamLoading, setStreamLoading] = useState(false);
   const [streamError, setStreamError] = useState('');
+  const selectedStreamSession = backendSessions.find((session) => String(session.id) === String(selectedStreamSessionId));
   const [sessionActionState, setSessionActionState] = useState('idle');
   const [registerStudentId, setRegisterStudentId] = useState('');
   const [registerStudentOptions, setRegisterStudentOptions] = useState([]);
@@ -1162,6 +1163,12 @@ export default function App() {
     } finally {
       setStreamLoading(false);
     }
+  };
+
+  const handleStopStream = () => {
+    setStreamUrl('');
+    setStreamError('');
+    setBackendMessage('Stream dihentikan.');
   };
 
   const handleStartEvaluation = async (sessionId) => {
@@ -2301,73 +2308,41 @@ export default function App() {
                   <span className="live-badge">🔴 Live</span>
                 </div>
 
-                <div style={{ marginBottom: '16px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <label style={{ fontWeight: 600, color: '#334155' }}>Pilih Sesi untuk Stream:</label>
-                  <select
-                    value={selectedStreamSessionId}
-                    onChange={(e) => setSelectedStreamSessionId(e.target.value)}
-                    style={{ minWidth: '220px', padding: '10px', borderRadius: '12px', border: '1px solid #cbd5e1', background: 'white' }}
-                  >
-                    <option value="">Pilih sesi</option>
-                    {backendSessions.map((session) => (
-                      <option key={session.id} value={session.id}>
-                        {session.subject ? `${session.subject} — ${session.classroom_name || session.camera_name || session.id}` : session.id}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    onClick={() => selectedStreamSessionId && handleMonitorStream(selectedStreamSessionId)}
-                    disabled={!selectedStreamSessionId || streamLoading}
-                  >
-                    {streamLoading ? 'Memulai...' : 'Mulai Stream'}
-                  </button>
-                </div>
-
-                <div style={{ marginBottom: '16px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <p style={{ margin: 0, color: '#475569' }}>
-                    Stream akan ditampilkan sebagai MJPEG langsung dari backend.
-                  </p>
-                </div>
-
                 <div className="live-feed-video-wrapper">
-                  <img 
-                    ref={imgRef}
-                    src={streamUrl || '/classroom_students.png'}
-                    alt="Classroom Live Stream"
-                    className="classroom-img"
-                    onError={() => {
-                      if (streamUrl) {
-                        setStreamError('Gagal memuat stream backend. Periksa koneksi kamera atau endpoint.')
-                      }
-                    }}
-                  />
-                  <canvas 
-                    ref={canvasRef}
-                    className="canvas-overlay"
-                  />
+                  {streamUrl ? (
+                    <>
+                      <img
+                        ref={imgRef}
+                        src={streamUrl}
+                        alt="Classroom Live Stream"
+                        className="classroom-img"
+                        onLoad={() => {
+                          if (streamError) {
+                            setStreamError('');
+                          }
+                        }}
+                        onError={() => {
+                          setStreamError('Gagal memuat stream backend. Periksa koneksi kamera atau endpoint.');
+                          setStreamUrl('');
+                        }}
+                      />
+                      <canvas
+                        ref={canvasRef}
+                        className="canvas-overlay"
+                      />
+                    </>
+                  ) : (
+                    <div className="live-placeholder">
+                      <strong>Tidak ada tampilan kamera aktif.</strong>
+                      <p>Pilih sesi di bawah lalu tekan <strong>Mulai Stream</strong> untuk melihat live feed.</p>
+                    </div>
+                  )}
                 </div>
 
-                {streamUrl && (
-                  <div style={{ marginTop: '12px', padding: '16px', borderRadius: '16px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                    <div style={{ marginBottom: '8px', fontWeight: 700 }}>Stream URL (Backend MJPEG)</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                      <input
-                        type="text"
-                        readOnly
-                        value={streamUrl}
-                        style={{ width: '100%', minWidth: '260px', padding: '10px 12px', borderRadius: '12px', border: '1px solid #cbd5e1', background: 'white' }}
-                      />
-                      <button
-                        type="button"
-                        className="btn-secondary"
-                        onClick={() => navigator.clipboard.writeText(streamUrl).catch(() => {})}
-                      >Salin URL</button>
-                    </div>
-                    <p style={{ marginTop: '12px', color: '#475569' }}>
-                      Stream langsung backend menggunakan MJPEG. Jika ingin melihatnya di browser, cukup membuka URL di tab baru.
-                    </p>
+                {selectedStreamSession && (
+                  <div className="stream-session-status">
+                    <span>Status sesi:</span>
+                    <strong>{selectedStreamSession.status ? selectedStreamSession.status.toUpperCase() : 'UNKNOWN'}</strong>
                   </div>
                 )}
 
@@ -2406,6 +2381,52 @@ export default function App() {
                 </div>
               </div>
 
+            </div>
+
+            <div className="stream-control-card">
+              <div style={{ display: 'grid', gap: '18px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <label style={{ fontWeight: 600, color: '#cbd5e1' }}>Pilih Sesi untuk Stream:</label>
+                  <select
+                    value={selectedStreamSessionId}
+                    onChange={(e) => setSelectedStreamSessionId(e.target.value)}
+                    style={{ width: '100%', maxWidth: '480px', padding: '12px 14px', borderRadius: '14px', border: '1px solid #334155', background: '#0b1220', color: '#f8fafc' }}
+                  >
+                    <option value="">Pilih sesi</option>
+                    {backendSessions.map((session) => (
+                      <option key={session.id} value={session.id}>
+                        {session.subject ? `${session.subject} — ${session.classroom_name || session.camera_name || session.id}` : session.id}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => selectedStreamSessionId && handleMonitorStream(selectedStreamSessionId)}
+                    disabled={!selectedStreamSessionId || streamLoading}
+                  >
+                    {streamLoading ? 'Memulai...' : 'Mulai Stream'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={handleStopStream}
+                    disabled={!streamUrl && !streamError}
+                  >
+                    Hentikan Stream
+                  </button>
+                </div>
+
+                {streamError && <p role="alert" style={{ color: '#f8d7da', margin: 0 }}>{streamError}</p>}
+                {!streamUrl && !streamError && (
+                  <p style={{ margin: 0, color: '#94a3b8' }}>
+                    Tekan tombol <strong>Mulai Stream</strong> untuk memulai aliran backend.
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         )}

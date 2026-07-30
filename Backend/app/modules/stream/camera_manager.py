@@ -1,6 +1,7 @@
 import time
 import threading
 import logging
+import os
 import cv2
 import uuid
 from app.database.database import SessionLocal
@@ -9,12 +10,29 @@ from app.modules.stream.ai_processor import AIProcessor
 
 logger = logging.getLogger(__name__)
 
+# MediaMTX menerima RTSP melalui TCP. Set sebelum VideoCapture dibuat agar
+# backend di Docker tidak mencoba RTP/UDP yang sering gagal pada Windows.
+os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp")
+
+
+def _resolve_camera_endpoint(endpoint: str) -> str:
+    """Make a Windows-host RTSP endpoint reachable from the API container."""
+    if not os.path.exists("/.dockerenv"):
+        return endpoint
+
+    for local_host in ("rtsp://127.0.0.1", "rtsp://localhost"):
+        if endpoint.startswith(local_host):
+            resolved = endpoint.replace(local_host, "rtsp://host.docker.internal", 1)
+            logger.info("[STREAM] Menggunakan endpoint host Docker: %s", resolved)
+            return resolved
+    return endpoint
+
 
 class ActiveStream:
     def __init__(self, endpoint, session_id):
-        self.endpoint = endpoint
+        self.endpoint = _resolve_camera_endpoint(endpoint)
         self.session_id = session_id
-        self.cap = cv2.VideoCapture(0 if endpoint == "0" else endpoint)
+        self.cap = cv2.VideoCapture(0 if self.endpoint == "0" else self.endpoint, cv2.CAP_FFMPEG)
         self.latest_frame = None
         self.detections = []
         self.is_running = True
