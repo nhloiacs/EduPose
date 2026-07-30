@@ -75,6 +75,7 @@ import {
     startEvaluation,
     endEvaluation,
     endClassroomSession,
+    getMonitorStreamUrl,
   getCurrentTeacherProfile,
   getDashboardMetrics,
   getDashboardSummary,
@@ -124,8 +125,6 @@ const INITIAL_STUDENTS = [];
 const INITIAL_WARNINGS = [];
 const INITIAL_CAMERA_BOXES = [];
 
-const WEB_SOCKET_URL = import.meta.env.VITE_WEBSOCKET_URL?.trim() ?? '';
-
 const ActionButton = ({ variant, icon: Icon, children, className = '', ...props }) => {
   const mergedClassName = ['action-button', `action-button--${variant}`, className].filter(Boolean).join(' ');
 
@@ -168,25 +167,6 @@ const formatMetricValue = (value) => {
   return Number(value).toLocaleString('id-ID', { maximumFractionDigits: 2 });
 };
 
-const normalizeWebSocketWarning = (payload) => {
-  if (!payload || typeof payload !== 'object') {
-    return {
-      name: 'Notifikasi Sistem',
-      desc: typeof payload === 'string' ? payload : 'Pembaruan websocket diterima',
-      time: 'Baru saja',
-    };
-  }
-
-  const studentName = payload.name || payload.studentName || payload.student || payload.title;
-  const message = payload.desc || payload.message || payload.text || payload.alert || payload.status;
-
-  return {
-    name: studentName || 'Notifikasi Sistem',
-    desc: message || 'Pembaruan websocket diterima',
-    time: formatAlertTime(payload.time || payload.timestamp || payload.createdAt),
-  };
-};
-
 export default function App() {
   const storedSession = readStoredSession();
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -220,9 +200,7 @@ export default function App() {
   // Real-time camera feed state and canvas ref
   const canvasRef = useRef(null);
   const imgRef = useRef(null);
-  const websocketRef = useRef(null);
   const [liveLog, setLiveLog] = useState([]);
-  const [connectionState, setConnectionState] = useState(WEB_SOCKET_URL ? 'connecting' : 'closed');
   
   // Profile settings state
   const [profileData, setProfileData] = useState({
@@ -296,6 +274,10 @@ export default function App() {
   const [sessionDetailLoading, setSessionDetailLoading] = useState(false);
   const [sessionDetailError, setSessionDetailError] = useState('');
   const [isSessionDetailOpen, setIsSessionDetailOpen] = useState(false);
+  const [streamUrl, setStreamUrl] = useState('');
+  const [selectedStreamSessionId, setSelectedStreamSessionId] = useState('');
+  const [streamLoading, setStreamLoading] = useState(false);
+  const [streamError, setStreamError] = useState('');
   const [sessionActionState, setSessionActionState] = useState('idle');
   const [registerStudentId, setRegisterStudentId] = useState('');
   const [registerStudentOptions, setRegisterStudentOptions] = useState([]);
@@ -399,57 +381,6 @@ export default function App() {
       }
     };
   }, [boxes]);
-
-  useEffect(() => {
-    if (!WEB_SOCKET_URL) {
-      return undefined;
-    }
-
-    const socket = new WebSocket(WEB_SOCKET_URL);
-    websocketRef.current = socket;
-
-    socket.onopen = () => {
-      setConnectionState('connected');
-    };
-
-    socket.onmessage = (event) => {
-      let payload = event.data;
-
-      if (typeof event.data === 'string') {
-        try {
-          payload = JSON.parse(event.data);
-        } catch {
-          payload = event.data;
-        }
-      }
-
-      const nextWarning = normalizeWebSocketWarning(payload);
-
-      setWarnings(previousWarnings => [
-        {
-          id: Date.now(),
-          studentId: payload?.studentId || payload?.id || 0,
-          name: nextWarning.name,
-          desc: nextWarning.desc,
-          time: nextWarning.time,
-        },
-        ...previousWarnings.slice(0, 5),
-      ]);
-    };
-
-    socket.onerror = () => {
-      setConnectionState('error');
-    };
-
-    socket.onclose = () => {
-      setConnectionState('closed');
-    };
-
-    return () => {
-      socket.close();
-      websocketRef.current = null;
-    };
-  }, []);
 
   useEffect(() => {
     // Profil formulir perlu diselaraskan saat sesi pengguna berubah.
@@ -561,7 +492,7 @@ export default function App() {
   }, [activeTab, authToken, searchQuery]);
 
   useEffect(() => {
-    if (!authToken || activeTab !== 'sessions') return undefined;
+    if (!authToken || !['sessions', 'live'].includes(activeTab)) return undefined;
     let isActive = true;
     const loadSessions = async () => {
       setSessionLoading(true);
@@ -1208,6 +1139,31 @@ export default function App() {
     }
   };
 
+  const handleMonitorStream = async (sessionId) => {
+    if (!authToken) {
+      setBackendMessage('Silakan login untuk melakukan aksi sesi');
+      return;
+    }
+
+    setStreamError('');
+    setStreamLoading(true);
+    setBackendMessage('Memulai stream...');
+    try {
+      const url = getMonitorStreamUrl(sessionId);
+      setStreamUrl(url);
+      setSelectedStreamSessionId(sessionId);
+      setBackendMessage('Stream backend berhasil disiapkan.');
+    } catch (err) {
+      console.error(err);
+      const errMsg = err instanceof Error ? err.message : 'Gagal memulai stream';
+      setStreamError(errMsg);
+      setBackendMessage(errMsg);
+      setStreamUrl('');
+    } finally {
+      setStreamLoading(false);
+    }
+  };
+
   const handleStartEvaluation = async (sessionId) => {
     if (!authToken) {
       setBackendMessage('Silakan login untuk melakukan aksi sesi');
@@ -1217,12 +1173,7 @@ export default function App() {
     setBackendMessage('Memulai evaluasi...');
     setSessionActionState('loading');
     try {
-      // Ensure camera stream is active by calling monitor endpoint (non-blocking)
-      try {
-        fetch(`${API_BASE_URL}/stream/monitor/${sessionId}`).catch(() => {});
-      } catch (e) {
-        // ignore
-      }
+      await handleMonitorStream(sessionId);
       // small delay to allow stream to initialize on backend
       await new Promise((r) => setTimeout(r, 800));
       const resp = await startEvaluation(sessionId, authToken);
@@ -2008,16 +1959,11 @@ export default function App() {
               </div>
             )}
 
-            <div className={`connection-status connection-${connectionState}`}>
+            <div className="connection-status connection-connected">
               <span className="connection-dot" />
               <div className="connection-copy">
-                <span className="connection-label">WebSocket</span>
-                <strong>
-                  {connectionState === 'connected' && 'Terhubung'}
-                  {connectionState === 'connecting' && 'Menghubungkan'}
-                  {connectionState === 'error' && 'Gagal konek'}
-                  {connectionState === 'closed' && !WEB_SOCKET_URL && ' Belum terhubung'}
-                </strong>
+                <span className="connection-label">Live Stream</span>
+                <strong>Akses stream via endpoint Stream Session</strong>
               </div>
             </div>
             <div style={{ width: 12 }} />
@@ -2354,19 +2300,83 @@ export default function App() {
                   </div>
                   <span className="live-badge">🔴 Live</span>
                 </div>
-                
+
+                <div style={{ marginBottom: '16px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <label style={{ fontWeight: 600, color: '#334155' }}>Pilih Sesi untuk Stream:</label>
+                  <select
+                    value={selectedStreamSessionId}
+                    onChange={(e) => setSelectedStreamSessionId(e.target.value)}
+                    style={{ minWidth: '220px', padding: '10px', borderRadius: '12px', border: '1px solid #cbd5e1', background: 'white' }}
+                  >
+                    <option value="">Pilih sesi</option>
+                    {backendSessions.map((session) => (
+                      <option key={session.id} value={session.id}>
+                        {session.subject ? `${session.subject} — ${session.classroom_name || session.camera_name || session.id}` : session.id}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => selectedStreamSessionId && handleMonitorStream(selectedStreamSessionId)}
+                    disabled={!selectedStreamSessionId || streamLoading}
+                  >
+                    {streamLoading ? 'Memulai...' : 'Mulai Stream'}
+                  </button>
+                </div>
+
+                <div style={{ marginBottom: '16px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <p style={{ margin: 0, color: '#475569' }}>
+                    Stream akan ditampilkan sebagai MJPEG langsung dari backend.
+                  </p>
+                </div>
+
                 <div className="live-feed-video-wrapper">
                   <img 
                     ref={imgRef}
-                    src="/classroom_students.png" 
-                    alt="Classroom Live Stream" 
+                    src={streamUrl || '/classroom_students.png'}
+                    alt="Classroom Live Stream"
                     className="classroom-img"
+                    onError={() => {
+                      if (streamUrl) {
+                        setStreamError('Gagal memuat stream backend. Periksa koneksi kamera atau endpoint.')
+                      }
+                    }}
                   />
                   <canvas 
                     ref={canvasRef}
                     className="canvas-overlay"
                   />
                 </div>
+
+                {streamUrl && (
+                  <div style={{ marginTop: '12px', padding: '16px', borderRadius: '16px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                    <div style={{ marginBottom: '8px', fontWeight: 700 }}>Stream URL (Backend MJPEG)</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                      <input
+                        type="text"
+                        readOnly
+                        value={streamUrl}
+                        style={{ width: '100%', minWidth: '260px', padding: '10px 12px', borderRadius: '12px', border: '1px solid #cbd5e1', background: 'white' }}
+                      />
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => navigator.clipboard.writeText(streamUrl).catch(() => {})}
+                      >Salin URL</button>
+                    </div>
+                    <p style={{ marginTop: '12px', color: '#475569' }}>
+                      Stream langsung backend menggunakan MJPEG. Jika ingin melihatnya di browser, cukup membuka URL di tab baru.
+                    </p>
+                  </div>
+                )}
+
+                {streamError && <p role="alert" style={{ color: '#b91c1c', marginTop: '12px' }}>{streamError}</p>}
+                {!streamUrl && !streamError && (
+                  <p style={{ marginTop: '12px', color: '#475569' }}>
+                    Tekan tombol <strong>Mulai Stream</strong> untuk memulai aliran backend. Jika Anda ingin RTSP external, backend perlu diubah lagi.
+                  </p>
+                )}
               </div>
 
               {/* Right Side Camera Detection List */}

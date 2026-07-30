@@ -83,7 +83,7 @@ const parseJson = async (response) => {
   try {
     return JSON.parse(text);
   } catch {
-    return null;
+    return text;
   }
 };
 
@@ -384,6 +384,11 @@ export const registerStudentPose = (sessionId, token, studentId) =>
 export const startEvaluation = (sessionId, token) =>
   apiRequest({ path: `/classroom-sessions/${sessionId}/start-eval`, method: 'POST', token })
     .then((payload) => normalizeBaseResponse(payload));
+
+export const getMonitorStreamUrl = (sessionId) =>
+  `${API_BASE_URL}/stream/monitor/${sessionId}`;
+
+export const monitorStream = getMonitorStreamUrl;
 
 export const endEvaluation = (sessionId, token) =>
   apiRequest({ path: `/classroom-sessions/${sessionId}/end-eval`, method: 'POST', token })
