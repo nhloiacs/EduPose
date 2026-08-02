@@ -1,3 +1,34 @@
+import { useEffect, useRef, useState } from 'react';
+import {
+  AlertCircle,
+  Award,
+  BarChart3,
+  BookOpen,
+  Calendar,
+  Camera,
+  Clock,
+  Cpu,
+  Eye,
+  LayoutDashboard,
+  PencilLine,
+  Plus,
+  Save,
+  Search,
+  Settings,
+  Trash2,
+  TrendingDown,
+  TrendingUp,
+  User,
+  Users,
+  Video,
+  XCircle,
+} from 'lucide-react';
+import { Bar as ChartBar, Line as ChartLine, Doughnut as ChartDoughnut } from 'react-chartjs-2';
+import { Chart as ChartJS, ArcElement, BarElement, CategoryScale, Filler, Legend, LineElement, LinearScale, PointElement, Title, Tooltip } from 'chart.js';
+export { useEffect, useRef, useState };
+export { AlertCircle, Award, BarChart3, BookOpen, Calendar, Camera, Clock, Cpu, Eye, LayoutDashboard, PencilLine, Plus, Save, Search, Settings, Trash2, TrendingDown, TrendingUp, User, Users, Video, XCircle };
+export { ChartJS, ArcElement, BarElement, CategoryScale, Filler, Legend, LineElement, LinearScale, PointElement, Title, Tooltip, ChartBar as Bar, ChartLine as Line, ChartDoughnut as Doughnut };
+
 const DEFAULT_API_BASE_URL = '/api';
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL?.trim() || DEFAULT_API_BASE_URL).replace(/\/$/, '');

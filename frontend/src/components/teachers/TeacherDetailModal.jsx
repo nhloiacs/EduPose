@@ -1,5 +1,4 @@
-import { XCircle } from 'lucide-react';
-import { API_BASE_URL } from '../lib/backendApi';
+import { XCircle, API_BASE_URL } from '../../imports';
 
 const formatDate = (timestamp) => {
   if (!timestamp) return '-';

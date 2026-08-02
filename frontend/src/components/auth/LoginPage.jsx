@@ -1,5 +1,4 @@
-import { LogIn, ShieldCheck, Sparkles, UserRound } from 'lucide-react';
-import logoEdupose from '../assets/logo-edupose.png';
+import { LogIn, ShieldCheck, UserRound, logoEdupose } from '../../imports';
 
 export default function LoginPage({
   loginForm,

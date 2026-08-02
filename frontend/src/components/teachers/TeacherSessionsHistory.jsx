@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import '../../styles/TeacherSessionsHistory.css';
 import {
+  useState,
+  useEffect,
   ChevronLeft,
   ChevronRight,
   Calendar,
@@ -7,22 +9,10 @@ import {
   BookOpen,
   Users,
   Search,
-  Filter,
   AlertCircle,
   Loader,
-} from 'lucide-react';
-import { getTeacherSessions } from '../lib/backendApi';
-import '../styles/TeacherSessionsHistory.css';
-
-const formatDateTimeLabel = (timestamp) => {
-  if (!timestamp) return '-';
-  const parsedTime = new Date(timestamp);
-  if (Number.isNaN(parsedTime.getTime())) return '-';
-  return parsedTime.toLocaleString('id-ID', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  });
-};
+  getTeacherSessions,
+} from '../../imports';
 
 const formatTime = (timestamp) => {
   if (!timestamp) return '-';

@@ -1,9 +1,4 @@
-import { useState, useEffect } from 'react';
-import {
-  AlertCircle,
-  Loader,
-} from 'lucide-react';
-import { getStudentSessions } from '../lib/backendApi';
+import { useState, useEffect, AlertCircle, Loader, getStudentSessions } from '../../imports';
 
 const formatDate = (timestamp) => {
   if (!timestamp) return '-';
