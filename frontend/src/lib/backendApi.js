@@ -500,15 +500,43 @@ export const formatDateParam = (date) => {
   return `${year}-${month}-${day}`;
 };
 
+/**
+ * Rentang tanggal untuk endpoint /dashboard/metrics.
+ *
+ * Backend memfilter dengan `start_time BETWEEN start_date AND end_date`, dan
+ * karena `end_date` bertipe DATE ia diperlakukan sebagai pukul 00:00. Akibatnya
+ * sesi yang berjalan HARI INI (mis. pukul 09:00) tidak ikut terhitung bila
+ * end_date diisi tanggal hari ini. Karena itu end_date digeser satu hari ke
+ * depan supaya data hari ini tetap masuk.
+ */
 export const getDateRange = (daysBack = 7) => {
-  const end = new Date();
-  const start = new Date();
-  start.setDate(end.getDate() - Math.max(daysBack - 1, 0));
+  const today = new Date();
+
+  const start = new Date(today);
+  start.setDate(today.getDate() - Math.max(daysBack - 1, 0));
+
+  const end = new Date(today);
+  end.setDate(today.getDate() + 1);
 
   return {
     start_date: formatDateParam(start),
     end_date: formatDateParam(end),
   };
+};
+
+/**
+ * Backend mengirim data metrik sebagai array di `data`, tetapi beberapa
+ * endpoint lain membungkusnya di `data.items`. Helper ini menerima keduanya
+ * sehingga grafik tidak diam-diam kosong hanya karena bentuk respons berbeda.
+ */
+export const toMetricArray = (response) => {
+  const data = response?.data ?? response;
+
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.data)) return data.data;
+
+  return [];
 };
 
 export const getDashboardSummary = (token) =>

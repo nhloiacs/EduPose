@@ -15,9 +15,13 @@ import {
   mapTopPerformersToStudents,
   mergeBoxesFromStudents,
   mergeStudentsFromBackend,
+  toMetricArray,
 } from '../imports';
 
 const REFRESH_INTERVAL_MS = 30000;
+
+// Rentang cadangan bila rentang terpilih belum menghasilkan data sama sekali.
+const FALLBACK_RANGE_DAYS = [7, 30, 90, 365];
 
 /**
  * Loads and periodically refreshes every dashboard dataset, then fans the results
@@ -44,6 +48,9 @@ export function useDashboardData({
   const [metricsByGranularity, setMetricsByGranularity] = useState({ daily: [], weekly: [], monthly: [] });
   const [topClassroomRankings, setTopClassroomRankings] = useState([]);
   const [topStudentPerformers, setTopStudentPerformers] = useState([]);
+  const [metricsRangeDays, setMetricsRangeDays] = useState(7);
+  const [metricsRangeUsed, setMetricsRangeUsed] = useState(7);
+  const [metricsError, setMetricsError] = useState('');
 
   useEffect(() => {
     let isActive = true;
@@ -61,13 +68,35 @@ export function useDashboardData({
         setBackendMessage('Mengambil statistik, chart, dan tabel dari backend...');
       }
 
-      const dailyRange = getDateRange(7);
       const weeklyRange = getDateRange(28);
       const isPrincipalUser = currentUser?.role === 'principal';
 
+      // Grafik harian diambil terpisah supaya bisa melebarkan rentang tanggal
+      // secara otomatis ketika rentang terpilih belum menghasilkan data.
+      const dailyMetricsPromise = (async () => {
+        const candidateRanges = [
+          metricsRangeDays,
+          ...FALLBACK_RANGE_DAYS.filter((days) => days > metricsRangeDays),
+        ];
+
+        let lastResult = { items: [], days: metricsRangeDays };
+
+        for (const days of candidateRanges) {
+          const response = await getDashboardMetrics(authToken, {
+            granularity: 'daily',
+            ...getDateRange(days),
+          });
+          const items = toMetricArray(response);
+          lastResult = { items, days };
+          if (items.length > 0) break;
+        }
+
+        return lastResult;
+      })();
+
       const dashboardRequests = [
         getDashboardSummary(authToken),
-        getDashboardMetrics(authToken, { granularity: 'daily', ...dailyRange }),
+        dailyMetricsPromise,
         getDashboardMetrics(authToken, { granularity: 'weekly', ...weeklyRange }),
         getTopPerformers(authToken, 'classroom', { limit: 10, sort_by: 'focus' }),
         // Backend membatasi limit top performer hingga 50 item.
@@ -110,15 +139,22 @@ export function useDashboardData({
         }
 
         if (dailyMetricsResult.status === 'fulfilled') {
-          const daily = Array.isArray(dailyMetricsResult.value.data) ? dailyMetricsResult.value.data : [];
+          const daily = dailyMetricsResult.value.items;
           setDailyMetrics(daily);
+          setMetricsRangeUsed(dailyMetricsResult.value.days);
+          setMetricsError('');
           setMetricsByGranularity((previous) => ({ ...previous, daily }));
         } else {
           partialErrors.push('grafik harian');
+          setMetricsError(
+            dailyMetricsResult.reason instanceof Error
+              ? dailyMetricsResult.reason.message
+              : 'Gagal mengambil data /dashboard/metrics.',
+          );
         }
 
         if (weeklyMetricsResult.status === 'fulfilled') {
-          const weekly = Array.isArray(weeklyMetricsResult.value.data) ? weeklyMetricsResult.value.data : [];
+          const weekly = toMetricArray(weeklyMetricsResult.value);
           setWeeklyMetrics(weekly);
           setMetricsByGranularity((previous) => ({ ...previous, weekly }));
         } else {
@@ -217,7 +253,7 @@ export function useDashboardData({
       clearInterval(refreshIntervalId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authToken, currentUser?.role]);
+  }, [authToken, currentUser?.role, metricsRangeDays]);
 
   const resetDashboard = () => {
     setStudents([]);
@@ -228,6 +264,7 @@ export function useDashboardData({
     setMetricsByGranularity({ daily: [], weekly: [], monthly: [] });
     setTopClassroomRankings([]);
     setTopStudentPerformers([]);
+    setMetricsError('');
   };
 
   // ---- Derived values -------------------------------------------------------
@@ -259,6 +296,10 @@ export function useDashboardData({
     dailyMetrics,
     weeklyMetrics,
     metricsByGranularity,
+    metricsRangeDays,
+    setMetricsRangeDays,
+    metricsRangeUsed,
+    metricsError,
     topClassroomRankings,
     topStudentPerformers,
     teacherMetrics,

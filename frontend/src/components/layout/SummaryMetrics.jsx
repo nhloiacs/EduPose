@@ -1,4 +1,4 @@
-import { BookOpen, Camera, TrendingUp, Users, Video } from '../../imports';
+import { BookOpen, TrendingUp, Users, Video } from '../../imports';
 
 function MetricCard({ icon: Icon, tone, label, value, changes = [], stacked = false }) {
   return (
@@ -29,7 +29,6 @@ export default function SummaryMetrics({
   totalClassroomsCount,
   totalTeachersCount,
   totalSubjectsCount,
-  totalCamerasCount,
   teacherAvgFocus,
   teacherAvgActiveStudents,
   teacherUsingPhone,
@@ -45,7 +44,6 @@ export default function SummaryMetrics({
           <MetricCard icon={Video} tone="fokus" label="Total Kelas" value={totalClassroomsCount} changes={[{ text: sourceLabel, direction: 'up' }]} />
           <MetricCard icon={Users} tone="tidak-fokus" label="Total Guru" value={totalTeachersCount} changes={[{ text: sourceLabel, direction: 'down' }]} />
           <MetricCard icon={BookOpen} tone="peringatan" label="Total Mapel" value={totalSubjectsCount} changes={[{ text: sourceLabel, direction: 'up' }]} />
-          <MetricCard icon={Camera} tone="fokus" label="Total Kamera" value={totalCamerasCount} changes={[{ text: sourceLabel, direction: 'up' }]} />
         </>
       ) : (
         <>

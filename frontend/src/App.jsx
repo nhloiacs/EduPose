@@ -149,7 +149,6 @@ export default function App() {
     ? (dashboard.dashboardSummary?.total_teachers ?? teachers.teachers.length)
     : null;
   const totalSubjectsCount = dashboard.dashboardSummary?.total_subjects ?? 0;
-  const totalCamerasCount = dashboard.dashboardSummary?.total_cameras ?? 0;
 
   // Daftar siswa yang ditampilkan: hasil paginasi backend, atau hasil filter lokal.
   const shouldUseFiltered = ui.searchQuery.trim() !== ''
@@ -241,7 +240,6 @@ export default function App() {
             totalClassroomsCount={totalClassroomsCount}
             totalTeachersCount={totalTeachersCount}
             totalSubjectsCount={totalSubjectsCount}
-            totalCamerasCount={totalCamerasCount}
             teacherAvgFocus={dashboard.teacherMetrics?.avg_focus_percentage ?? 0}
             teacherAvgActiveStudents={dashboard.teacherMetrics?.avg_active_students ?? 0}
             teacherUsingPhone={dashboard.teacherMetrics?.total_using_phone ?? 0}
@@ -253,6 +251,10 @@ export default function App() {
           <DashboardView
             isInitialLoading={isInitialLoading}
             dailyMetrics={dashboard.dailyMetrics}
+            metricsRangeDays={dashboard.metricsRangeDays}
+            onMetricsRangeChange={dashboard.setMetricsRangeDays}
+            metricsRangeUsed={dashboard.metricsRangeUsed}
+            metricsError={dashboard.metricsError}
             topClassroomRankings={dashboard.topClassroomRankings}
             topStudentPerformers={dashboard.topStudentPerformers}
             warnings={dashboard.warnings}
