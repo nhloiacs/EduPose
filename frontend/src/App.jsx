@@ -388,14 +388,12 @@ export default function App() {
         {ui.activeTab === 'profile' && (
           <ProfileView
             profileData={profile.profileData}
-            setProfileData={profile.setProfileData}
             profileError={profile.profileError}
-            backendMessage={auth.backendMessage}
+            syncState={auth.syncState}
             currentUser={auth.currentUser}
             totalStudentsCount={totalStudentsCount}
-            totalTeachersCount={teachers.teachers.length}
-            totalClassroomsCount={classrooms.backendClassrooms.length}
-            onSaveProfile={profile.handleSaveProfile}
+            totalTeachersCount={totalTeachersCount ?? teachers.teachers.length}
+            totalClassroomsCount={totalClassroomsCount}
             onLogout={handleLogout}
           />
         )}

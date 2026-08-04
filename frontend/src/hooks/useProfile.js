@@ -59,14 +59,9 @@ export function useProfile({ authToken, currentUser, setCurrentUser }) {
     return () => { isActive = false; };
   }, [authToken, setCurrentUser]);
 
-  const handleSaveProfile = (event) => {
-    event.preventDefault();
-    setProfileError(
-      'Pembaruan profil belum dapat dikirim: endpoint backend hanya mengizinkan PATCH /teachers/{teacher_id} untuk role principal, sedangkan profil saat ini tidak menyediakan endpoint update mandiri.',
-    );
-  };
-
-  return { profileData, setProfileData, profileError, handleSaveProfile };
+  // Profil bersifat baca saja: backend hanya menyediakan PATCH /teachers/{id}
+  // untuk role principal, tidak ada endpoint update mandiri untuk guru.
+  return { profileData, setProfileData, profileError };
 }
 
 export default useProfile;

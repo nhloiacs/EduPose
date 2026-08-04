@@ -14,7 +14,7 @@
 // sudah ikut ter-export lewat `export * from './lib/backendApi'` di bawah.
 export { useCallback, useMemo, StrictMode } from 'react';
 export { createRoot } from 'react-dom/client';
-export { ChevronLeft, ChevronRight, Loader, LogIn, ShieldCheck, UserRound } from 'lucide-react';
+export { ChevronLeft, ChevronRight, Loader, LogIn, LogOut, ShieldCheck, UserRound } from 'lucide-react';
 
 // ---- Backend API, chart, ikon, dan React hooks -------------------------------
 export * from './lib/backendApi';
