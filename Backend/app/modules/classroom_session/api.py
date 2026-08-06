@@ -1,7 +1,7 @@
 import uuid
 from fastapi import APIRouter, Depends, Query, Body
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import List, Optional
 from app.database.database import get_db
 from app.core.auth_deps import require_teacher, require_principal_or_teacher
 from app.core.responses import BaseResponse, PaginationMeta
@@ -15,6 +15,9 @@ from app.modules.classroom_session.schema import (
     PaginatedSessionStudentMetricResponse,
     RegisterStudentRequest,
     RegisterStudentResponse,
+    StudentAttendanceOption,
+    EvaluationStatusResponse,
+    LiveDetectionResponse,
 )
 from app.modules.classroom_session.service import ClassroomSessionService
 
@@ -148,6 +151,48 @@ def get_session_students(
     return BaseResponse(
         message="Session students metrics retrieved successfully", data=paginated_data
     )
+
+
+@router.get(
+    "/{session_id}/attendance",
+    response_model=BaseResponse[List[StudentAttendanceOption]],
+    summary="Get attendance status of every student in the session",
+)
+def get_session_attendance(
+    session_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_principal_or_teacher),
+):
+    data = ClassroomSessionService.get_session_attendance(db, session_id)
+    return BaseResponse(message="Attendance retrieved", data=data)
+
+
+@router.get(
+    "/{session_id}/evaluation-status",
+    response_model=BaseResponse[EvaluationStatusResponse],
+    summary="Get current stream and evaluation state of the session",
+)
+def get_evaluation_status(
+    session_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_principal_or_teacher),
+):
+    data = ClassroomSessionService.get_evaluation_status(db, session_id)
+    return BaseResponse(message="Evaluation status retrieved", data=data)
+
+
+@router.get(
+    "/{session_id}/live-detections",
+    response_model=BaseResponse[LiveDetectionResponse],
+    summary="Get latest camera detections mapped to students",
+)
+def get_live_detections(
+    session_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_principal_or_teacher),
+):
+    data = ClassroomSessionService.get_live_detections(db, session_id)
+    return BaseResponse(message="Live detections retrieved", data=data)
 
 
 @router.post(

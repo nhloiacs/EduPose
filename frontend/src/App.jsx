@@ -265,6 +265,10 @@ export default function App() {
           <LiveView
             imgRef={live.imgRef}
             canvasRef={live.canvasRef}
+            liveLog={live.liveLog}
+            detectedPeople={live.detectedPeople}
+            detectionStreamActive={live.detectionStreamActive}
+            detectionError={live.detectionError}
             streamUrl={live.streamUrl}
             streamError={live.streamError}
             streamLoading={live.streamLoading}
@@ -273,10 +277,6 @@ export default function App() {
               live.setStreamError('Gagal memuat stream backend. Periksa koneksi kamera atau endpoint.');
               live.setStreamUrl('');
             }}
-            liveLog={live.liveLog}
-            detectedPeople={live.detectedPeople}
-            detectionStreamActive={live.detectionStreamActive}
-            detectionError={live.detectionError}
             sessions={sessions.sessions}
             selectedStreamSessionId={live.selectedStreamSessionId}
             onSelectStreamSession={live.setSelectedStreamSessionId}

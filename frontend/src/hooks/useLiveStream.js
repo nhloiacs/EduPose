@@ -16,19 +16,18 @@ export function useLiveStream({ authToken, setBackendMessage }) {
   const imgRef = useRef(null);
 
   const [boxes, setBoxes] = useState([]);
-  const [liveLog, setLiveLog] = useState([]);
   const [streamUrl, setStreamUrl] = useState('');
   const [selectedStreamSessionId, setSelectedStreamSessionId] = useState('');
   const [streamLoading, setStreamLoading] = useState(false);
   const [streamError, setStreamError] = useState('');
+  const [liveLog, setLiveLog] = useState([]);
   const [detectedPeople, setDetectedPeople] = useState(0);
   const [detectionStreamActive, setDetectionStreamActive] = useState(false);
   const [detectionError, setDetectionError] = useState('');
 
   /**
-   * Panel hasil deteksi diisi dari kamera, bukan dari data dashboard.
-   * Backend hanya menjalankan inferensi tiap 5 detik, jadi polling 3 detik
-   * sudah lebih dari cukup.
+   * Panel hasil deteksi diisi dari kamera. Backend menjalankan inferensi tiap
+   * 5 detik, jadi polling 3 detik sudah lebih dari cukup.
    */
   useEffect(() => {
     if (!authToken || !streamUrl || !selectedStreamSessionId) return undefined;
@@ -177,13 +176,13 @@ export function useLiveStream({ authToken, setBackendMessage }) {
 
   const resetLiveState = () => {
     setBoxes([]);
+    setStreamUrl('');
+    setStreamError('');
+    setSelectedStreamSessionId('');
     setLiveLog([]);
     setDetectedPeople(0);
     setDetectionStreamActive(false);
     setDetectionError('');
-    setStreamUrl('');
-    setStreamError('');
-    setSelectedStreamSessionId('');
   };
 
   return {
@@ -192,7 +191,6 @@ export function useLiveStream({ authToken, setBackendMessage }) {
     boxes,
     setBoxes,
     liveLog,
-    setLiveLog,
     detectedPeople,
     detectionStreamActive,
     detectionError,

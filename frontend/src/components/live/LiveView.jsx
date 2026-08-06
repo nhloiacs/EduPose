@@ -3,6 +3,7 @@ import { detectionLabel } from '../../imports';
 export default function LiveView({
   imgRef,
   canvasRef,
+  liveLog,
   detectedPeople,
   detectionStreamActive,
   detectionError,
@@ -11,7 +12,6 @@ export default function LiveView({
   streamLoading,
   onStreamLoaded,
   onStreamFailed,
-  liveLog,
   sessions,
   selectedStreamSessionId,
   onSelectStreamSession,
@@ -108,15 +108,12 @@ export default function LiveView({
               </div>
             ) : liveLog.length > 0 ? (
               liveLog.map((result) => {
-                const isDetected = Boolean(result.label);
-                const badgeClass = result.label === 'focus'
-                  ? 'badge-aktif'
-                  : 'badge-tidak-aktif';
+                const badgeClass = result.label === 'focus' ? 'badge-aktif' : 'badge-tidak-aktif';
 
                 return (
                   <div className="result-item" key={result.id}>
                     <span className="result-student-name">{result.name}</span>
-                    <span className={`badge ${isDetected ? badgeClass : 'badge-tidak-aktif'}`}>
+                    <span className={`badge ${badgeClass}`}>
                       {detectionLabel(result.label)}
                       {result.confidence ? ` ${Math.round(result.confidence * 100)}%` : ''}
                     </span>

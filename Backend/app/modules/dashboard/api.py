@@ -7,7 +7,7 @@ from app.database.database import get_db
 from app.core.auth_deps import require_principal_or_teacher
 from app.core.responses import BaseResponse
 from app.modules.dashboard.service import DashboardService
-from app.modules.dashboard.schema import PrincipalDashboardResponse, TeacherDashboardResponse, AggregatedMetric, Granularity, TopEntityTarget, TopSortBy, TopPerformerResponse
+from app.modules.dashboard.schema import PrincipalDashboardResponse, TeacherDashboardResponse, AggregatedMetric, Granularity, TopEntityTarget, TopSortBy, TopPerformerResponse, LiveWarningResponse
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
@@ -64,6 +64,20 @@ def get_top_performers(
         return BaseResponse(status_code=403, message="Teachers cannot view teacher rankings", data=[])
     data = DashboardService.get_top_performers(db, entity, limit, sort_by, role, user_id)
     return BaseResponse(message=f"Top {limit} {entity.value}s retrieved successfully", data=data)
+
+@router.get("/live-warnings", response_model=BaseResponse[LiveWarningResponse])
+def get_live_warnings(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_principal_or_teacher),
+):
+    """
+    Peringatan atensi real-time dari kamera pada sesi yang sedang berlangsung.
+    """
+    user_id = uuid.UUID(current_user.get("sub"))
+    role = current_user.get("role")
+    data = DashboardService.get_live_warnings(db, role, user_id)
+    return BaseResponse(message="Live warnings retrieved", data=data)
+
 
 @router.get("/warnings/{entity}", response_model=BaseResponse[List[TopPerformerResponse]])
 def get_dashboard_warnings(

@@ -408,21 +408,12 @@ export const getClassroomSessionDetail = (sessionId, token) =>
   apiRequest({ path: `/classroom-sessions/${sessionId}`, method: 'GET', token })
     .then((payload) => normalizeBaseResponse(payload));
 
-export const getSessionLiveDetections = (sessionId, token) =>
+export const getSessionAttendance = (sessionId, token) =>
   apiRequest({
-    path: `/classroom-sessions/${sessionId}/live-detections`,
+    path: `/classroom-sessions/${sessionId}/attendance`,
     method: 'GET',
     token,
   }).then((payload) => normalizeBaseResponse(payload));
-
-/** Label pose hasil deteksi kamera dalam bahasa Indonesia. */
-export const DETECTION_LABELS = {
-  focus: 'Fokus',
-  distracted: 'Tidak Fokus',
-  'raise-hand': 'Angkat Tangan',
-};
-
-export const detectionLabel = (label) => DETECTION_LABELS[label] ?? 'Tidak Terdeteksi';
 
 export const getSessionEvaluationStatus = (sessionId, token) =>
   apiRequest({
@@ -431,9 +422,9 @@ export const getSessionEvaluationStatus = (sessionId, token) =>
     token,
   }).then((payload) => normalizeBaseResponse(payload));
 
-export const getSessionAttendance = (sessionId, token) =>
+export const getSessionLiveDetections = (sessionId, token) =>
   apiRequest({
-    path: `/classroom-sessions/${sessionId}/attendance`,
+    path: `/classroom-sessions/${sessionId}/live-detections`,
     method: 'GET',
     token,
   }).then((payload) => normalizeBaseResponse(payload));
@@ -446,6 +437,15 @@ export const ATTENDANCE_LABELS = {
 };
 
 export const attendanceLabel = (status) => ATTENDANCE_LABELS[status] ?? 'Belum diabsen';
+
+/** Label pose hasil deteksi kamera dalam bahasa Indonesia. */
+export const DETECTION_LABELS = {
+  focus: 'Fokus',
+  distracted: 'Tidak Fokus',
+  'raise-hand': 'Angkat Tangan',
+};
+
+export const detectionLabel = (label) => DETECTION_LABELS[label] ?? 'Tidak Terdeteksi';
 
 export const registerStudentPose = (sessionId, token, studentId) =>
   apiRequest({
