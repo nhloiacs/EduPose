@@ -52,19 +52,6 @@ class MonthlyMetric(BaseMetric):
 
 AggregatedMetric = Union[DailyMetric, WeeklyMetric, MonthlyMetric]
 
-
-class LiveWarningStudent(BaseModel):
-    id: uuid.UUID
-    name: str
-    classroom_name: Optional[str] = None
-    subject: Optional[str] = None
-    confidence: Optional[float] = None
-
-
-class LiveWarningResponse(BaseModel):
-    has_active_session: bool
-    students: List[LiveWarningStudent] = []
-
 class TopEntityTarget(str, Enum):
     STUDENT = "student"
     CLASSROOM = "classroom"

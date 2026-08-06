@@ -1,12 +1,7 @@
-import math
 import uuid
 from sqlalchemy.orm import Session
 from typing import Union
 from datetime import date
-from app.models.classroom_session import ClassroomSession
-from app.models.session_seating import SessionSeating
-from app.models.student import Student
-from app.modules.stream.camera_manager import CameraManager
 from app.modules.dashboard.repository import DashboardRepository
 from app.modules.dashboard.schema import (
     PrincipalDashboardResponse, TeacherDashboardResponse, TeacherDashboardMetrics, Granularity, DailyMetric, WeeklyMetric, MonthlyMetric, TopEntityTarget, TopSortBy, TopStudentRead, TopClassroomRead, TopSubjectRead, TopSessionRead, TopTeacherRead
@@ -105,73 +100,6 @@ class DashboardService:
                 total_raised_hand=int(r.total_raised or 0)
             ) for r in rows]
         return result
-
-    @staticmethod
-    def get_live_warnings(db: Session, role: str, uid: uuid.UUID) -> dict:
-        """
-        Peringatan atensi berdasarkan deteksi kamera saat ini pada sesi yang
-        sedang berlangsung, bukan rata-rata historis.
-        """
-        query = db.query(ClassroomSession).filter(
-            ClassroomSession.status == "ONGOING",
-            ClassroomSession.deleted_at.is_(None),
-        )
-        if role == "teacher":
-            query = query.filter(ClassroomSession.teacher_id == uid)
-
-        sessions = query.all()
-        RADIUS = 150.0
-        warnings = []
-        active_sessions = 0
-
-        for session in sessions:
-            endpoint = session.camera.endpoint if session.camera else None
-            if not endpoint:
-                continue
-
-            detections = CameraManager.get_latest_detections(endpoint)
-            if detections is None:
-                continue
-
-            active_sessions += 1
-            if not detections:
-                continue
-
-            seatings = (
-                db.query(SessionSeating, Student)
-                .join(Student, SessionSeating.student_id == Student.id)
-                .filter(SessionSeating.session_id == session.id)
-                .all()
-            )
-
-            classroom_name = session.classroom.name if session.classroom else None
-
-            for seating, student in seatings:
-                matched = None
-                min_dist = float("inf")
-                for det in detections:
-                    dx = det["center"][0] - seating.pos_x
-                    dy = det["center"][1] - seating.pos_y
-                    dist = math.hypot(dx, dy)
-                    if dist < min_dist and dist <= RADIUS:
-                        min_dist = dist
-                        matched = det
-
-                if matched and matched["label"] == "distracted":
-                    warnings.append(
-                        {
-                            "id": student.id,
-                            "name": student.name,
-                            "classroom_name": classroom_name,
-                            "subject": session.subject,
-                            "confidence": matched["confidence"],
-                        }
-                    )
-
-        return {
-            "has_active_session": active_sessions > 0,
-            "students": warnings,
-        }
 
     @staticmethod
     def get_dashboard_warnings(db: Session, entity: TopEntityTarget, threshold: float, role: str, uid: uuid.UUID):

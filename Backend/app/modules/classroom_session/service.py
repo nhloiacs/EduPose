@@ -1,7 +1,5 @@
-import os
 import uuid
 import math
-import logging
 from sqlalchemy.orm import Session
 from typing import List, Tuple, Optional
 from fastapi import HTTPException
@@ -29,13 +27,6 @@ from app.models.student_metric import StudentMetric
 from app.models.classroom_metric import ClassroomMetric
 from app.models.student import Student
 from app.modules.stream.camera_manager import CameraManager
-from app.modules.stream.ai_processor import AIProcessor
-
-logger = logging.getLogger(__name__)
-
-# Ambang keyakinan minimum agar sebuah deteksi dianggap benar-benar
-# "angkat tangan" saat absensi. Bisa disetel lewat variabel lingkungan.
-MIN_RAISE_HAND_CONFIDENCE = float(os.getenv("RAISE_HAND_MIN_CONFIDENCE", "0.75"))
 
 
 class ClassroomSessionService:
@@ -374,159 +365,21 @@ class ClassroomSessionService:
         return session
 
     @staticmethod
-    def get_live_detections(db: Session, session_id: uuid.UUID) -> dict:
-        """
-        Hasil deteksi kamera terbaru yang sudah dipetakan ke nama siswa,
-        memakai posisi duduk hasil absensi (logika sama dengan rekap sesi).
-        """
-        session = ClassroomSessionRepository.get_by_id(db, session_id)
-        if not session:
-            raise NotFoundException("Sesi kelas tidak ditemukan.")
-
-        endpoint = session.camera.endpoint if session.camera else None
-        detections = (
-            CameraManager.get_latest_detections(endpoint) if endpoint else None
-        )
-
-        if detections is None:
-            return {"stream_active": False, "students": []}
-
-        seatings = (
-            db.query(SessionSeating, Student)
-            .join(Student, SessionSeating.student_id == Student.id)
-            .filter(SessionSeating.session_id == session_id)
-            .all()
-        )
-
-        RADIUS = 150.0
-        students = []
-        for seating, student in seatings:
-            matched_label = None
-            matched_confidence = None
-            min_dist = float("inf")
-            for det in detections:
-                dx = det["center"][0] - seating.pos_x
-                dy = det["center"][1] - seating.pos_y
-                dist = math.hypot(dx, dy)
-                if dist < min_dist and dist <= RADIUS:
-                    min_dist = dist
-                    matched_label = det["label"]
-                    matched_confidence = det["confidence"]
-
-            students.append(
-                {
-                    "id": student.id,
-                    "name": student.name,
-                    "label": matched_label,
-                    "confidence": matched_confidence,
-                }
-            )
-
-        return {
-            "stream_active": True,
-            "detected_people": len(detections),
-            "students": students,
-        }
-
-    @staticmethod
-    def get_evaluation_status(db: Session, session_id: uuid.UUID) -> dict:
-        """Status stream & evaluasi terkini, dipakai UI untuk memulihkan tampilan."""
-        session = ClassroomSessionRepository.get_by_id(db, session_id)
-        if not session:
-            raise NotFoundException("Sesi kelas tidak ditemukan.")
-
-        endpoint = session.camera.endpoint if session.camera else None
-        state = (
-            CameraManager.get_evaluation_state(endpoint) if endpoint else None
-        )
-
-        return {
-            "stream_active": state is not None,
-            "is_evaluating": bool(state),
-        }
-
-    @staticmethod
-    def get_session_attendance(db: Session, session_id: uuid.UUID) -> list:
-        """Daftar siswa kelas beserta status kehadirannya pada sesi ini."""
-        session = ClassroomSessionRepository.get_by_id(db, session_id)
-        if not session:
-            raise NotFoundException("Sesi kelas tidak ditemukan.")
-
-        students = (
-            db.query(Student)
-            .filter(
-                Student.classroom_id == session.classroom_id,
-                Student.deleted_at.is_(None),
-            )
-            .order_by(Student.name)
-            .all()
-        )
-
-        seatings = {
-            seating.student_id: seating.attendance_status
-            for seating in db.query(SessionSeating)
-            .filter(SessionSeating.session_id == session_id)
-            .all()
-        }
-
-        return [
-            {
-                "id": student.id,
-                "name": student.name,
-                "nis": student.nis,
-                # NOT_REGISTERED = belum pernah diabsen pada sesi ini.
-                "status": seatings.get(student.id, "NOT_REGISTERED"),
-            }
-            for student in students
-        ]
-
-    @staticmethod
     def register_student_pose(
         db: Session, session_id: uuid.UUID, student_id: uuid.UUID
     ) -> dict:
         session = ClassroomSessionRepository.get_by_id(db, session_id)
         if not session or session.status != "ONGOING":
             raise BadRequestException("Sesi tidak valid atau sudah selesai.")
-        if not session.camera or not session.camera.endpoint:
-            raise BadRequestException(
-                "Sesi ini belum terhubung ke kamera mana pun."
-            )
         endpoint = session.camera.endpoint
         frame = CameraManager.get_latest_frame(endpoint)
         if frame is None:
             raise BadRequestException(
                 "Stream kamera belum siap. Tunggu beberapa detik."
             )
-        # Inferensi model dibungkus supaya kegagalan model tidak muncul sebagai
-        # error 500 tanpa keterangan di sisi pengguna.
-        try:
-            detections = AIProcessor.process_frame(frame)
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("[ABSENSI] Model AI gagal memproses frame")
-            raise BadRequestException(
-                f"Model AI gagal memproses gambar kamera: {exc}"
-            )
-        # Model hanya mengenal tiga kelas (fokus, terdistraksi, angkat tangan),
-        # sehingga kelas "angkat tangan" bisa menang tipis walau siswa hanya
-        # duduk biasa. Karena itu absensi mensyaratkan ambang keyakinan minimum.
-        raise_hand_candidates = [d for d in detections if d["label"] == "raise-hand"]
-        raise_hand_detections = [
-            d
-            for d in raise_hand_candidates
-            if d["confidence"] >= MIN_RAISE_HAND_CONFIDENCE
-        ]
-
+        detections = AIProcessor.process_frame(frame)
+        raise_hand_detections = [d for d in detections if d["label"] == "raise-hand"]
         if len(raise_hand_detections) == 0:
-            best_confidence = max(
-                (d["confidence"] for d in raise_hand_candidates), default=None
-            )
-            if best_confidence is not None:
-                raise BadRequestException(
-                    "Pose angkat tangan belum meyakinkan "
-                    f"(keyakinan {best_confidence * 100:.0f}%, minimal "
-                    f"{MIN_RAISE_HAND_CONFIDENCE * 100:.0f}%). "
-                    "Minta siswa mengangkat tangan lebih tinggi dan menghadap kamera, lalu coba lagi."
-                )
             raise BadRequestException(
                 "Siswa tidak terdeteksi mengangkat tangan. Silakan coba lagi."
             )
