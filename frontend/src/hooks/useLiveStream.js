@@ -1,4 +1,12 @@
-import { useEffect, useRef, useState, getMonitorStreamUrl } from '../imports';
+import {
+  useEffect,
+  useRef,
+  useState,
+  getMonitorStreamUrl,
+  getSessionLiveDetections,
+} from '../imports';
+
+const DETECTION_POLL_INTERVAL_MS = 3000;
 
 /**
  * Owns the live camera feed: stream url, detection log and the bounding-box overlay canvas.
@@ -13,6 +21,46 @@ export function useLiveStream({ authToken, setBackendMessage }) {
   const [selectedStreamSessionId, setSelectedStreamSessionId] = useState('');
   const [streamLoading, setStreamLoading] = useState(false);
   const [streamError, setStreamError] = useState('');
+  const [detectedPeople, setDetectedPeople] = useState(0);
+  const [detectionStreamActive, setDetectionStreamActive] = useState(false);
+  const [detectionError, setDetectionError] = useState('');
+
+  /**
+   * Panel hasil deteksi diisi dari kamera, bukan dari data dashboard.
+   * Backend hanya menjalankan inferensi tiap 5 detik, jadi polling 3 detik
+   * sudah lebih dari cukup.
+   */
+  useEffect(() => {
+    if (!authToken || !streamUrl || !selectedStreamSessionId) return undefined;
+
+    let isActive = true;
+
+    const loadDetections = async () => {
+      try {
+        const response = await getSessionLiveDetections(selectedStreamSessionId, authToken);
+        if (!isActive) return;
+
+        const data = response.data ?? {};
+        setDetectionError('');
+        setDetectionStreamActive(Boolean(data.stream_active));
+        setDetectedPeople(Number(data.detected_people ?? 0));
+        setLiveLog(Array.isArray(data.students) ? data.students : []);
+      } catch (error) {
+        if (!isActive) return;
+        // Kegagalan tidak boleh disembunyikan: tanpa pesan, panel kosong akan
+        // terlihat seperti "tidak ada siswa" padahal endpointnya yang gagal.
+        setDetectionStreamActive(false);
+        setDetectionError(
+          error instanceof Error ? error.message : 'Gagal mengambil hasil deteksi kamera.',
+        );
+      }
+    };
+
+    loadDetections();
+    const intervalId = setInterval(loadDetections, DETECTION_POLL_INTERVAL_MS);
+
+    return () => { isActive = false; clearInterval(intervalId); };
+  }, [authToken, streamUrl, selectedStreamSessionId]);
 
   useEffect(() => {
     const drawCanvas = () => {
@@ -130,6 +178,9 @@ export function useLiveStream({ authToken, setBackendMessage }) {
   const resetLiveState = () => {
     setBoxes([]);
     setLiveLog([]);
+    setDetectedPeople(0);
+    setDetectionStreamActive(false);
+    setDetectionError('');
     setStreamUrl('');
     setStreamError('');
     setSelectedStreamSessionId('');
@@ -142,6 +193,9 @@ export function useLiveStream({ authToken, setBackendMessage }) {
     setBoxes,
     liveLog,
     setLiveLog,
+    detectedPeople,
+    detectionStreamActive,
+    detectionError,
     streamUrl,
     setStreamUrl,
     selectedStreamSessionId,

@@ -408,6 +408,22 @@ export const getClassroomSessionDetail = (sessionId, token) =>
   apiRequest({ path: `/classroom-sessions/${sessionId}`, method: 'GET', token })
     .then((payload) => normalizeBaseResponse(payload));
 
+export const getSessionLiveDetections = (sessionId, token) =>
+  apiRequest({
+    path: `/classroom-sessions/${sessionId}/live-detections`,
+    method: 'GET',
+    token,
+  }).then((payload) => normalizeBaseResponse(payload));
+
+/** Label pose hasil deteksi kamera dalam bahasa Indonesia. */
+export const DETECTION_LABELS = {
+  focus: 'Fokus',
+  distracted: 'Tidak Fokus',
+  'raise-hand': 'Angkat Tangan',
+};
+
+export const detectionLabel = (label) => DETECTION_LABELS[label] ?? 'Tidak Terdeteksi';
+
 export const getSessionEvaluationStatus = (sessionId, token) =>
   apiRequest({
     path: `/classroom-sessions/${sessionId}/evaluation-status`,
@@ -588,6 +604,26 @@ export const getTopPerformers = (token, entity, params = {}) =>
     token,
     params,
   }).then((payload) => normalizeBaseResponse(payload));
+
+export const getDashboardLiveWarnings = (token) =>
+  apiRequest({
+    path: '/dashboard/live-warnings',
+    method: 'GET',
+    token,
+  }).then((payload) => normalizeBaseResponse(payload));
+
+/** Peringatan real-time dari deteksi kamera pada sesi yang sedang berjalan. */
+export const mapLiveWarnings = (items = []) =>
+  (Array.isArray(items) ? items : []).map((item, index) => ({
+    id: item.id ?? index,
+    name: item.name,
+    desc: [
+      'Terdeteksi tidak fokus',
+      item.classroom_name,
+      item.subject,
+    ].filter(Boolean).join(' — '),
+    time: 'Sekarang',
+  }));
 
 export const getDashboardWarnings = (token, entity, params = {}) =>
   apiRequest({

@@ -14,6 +14,7 @@ from app.modules.classroom_session.schema import (
     ClassroomSessionCreateResponse,
     PaginatedSessionStudentMetricResponse,
     EvaluationStatusResponse,
+    LiveDetectionResponse,
     RegisterStudentRequest,
     RegisterStudentResponse,
     StudentAttendanceOption,
@@ -150,6 +151,20 @@ def get_session_students(
     return BaseResponse(
         message="Session students metrics retrieved successfully", data=paginated_data
     )
+
+
+@router.get(
+    "/{session_id}/live-detections",
+    response_model=BaseResponse[LiveDetectionResponse],
+    summary="Get latest camera detections mapped to students",
+)
+def get_live_detections(
+    session_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_principal_or_teacher),
+):
+    data = ClassroomSessionService.get_live_detections(db, session_id)
+    return BaseResponse(message="Live detections retrieved", data=data)
 
 
 @router.get(

@@ -110,6 +110,19 @@ class EvaluationStatusResponse(BaseModel):
     is_evaluating: bool
 
 
+class LiveDetectionStudent(BaseModel):
+    id: uuid.UUID
+    name: str
+    label: Optional[str] = None
+    confidence: Optional[float] = None
+
+
+class LiveDetectionResponse(BaseModel):
+    stream_active: bool
+    detected_people: int = 0
+    students: List[LiveDetectionStudent] = []
+
+
 class RegisterStudentResponse(BaseModel):
     center_x: int
     center_y: int

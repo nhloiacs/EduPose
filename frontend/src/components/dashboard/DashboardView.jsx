@@ -31,6 +31,7 @@ export default function DashboardView({
   topClassroomRankings,
   topStudentPerformers,
   warnings,
+  isLiveWarnings,
 }) {
   const hasDailyMetrics = dailyMetrics.length > 0;
   const dailyAttentionData = buildDailyAttentionChart(dailyMetrics);
@@ -121,10 +122,17 @@ export default function DashboardView({
           <div className="card-header">
             <div>
               <h2 className="card-title">Peringatan Atensi Siswa</h2>
-              {warnings.length > 0 && (
-                <p className="card-subtitle">{warnings.length} siswa perlu perhatian</p>
-              )}
+              <p className="card-subtitle">
+                {isLiveWarnings
+                  ? `${warnings.length} siswa tidak fokus saat ini`
+                  : warnings.length > 0
+                    ? `${warnings.length} siswa perlu perhatian (rata-rata historis)`
+                    : 'Belum ada peringatan'}
+              </p>
             </div>
+            {isLiveWarnings && (
+              <span className="badge badge-status badge-aktif">Real-time</span>
+            )}
           </div>
           {/* Tinggi dikunci ~4 kartu peringatan, sisanya bisa di-scroll. */}
           <div style={{ maxHeight: '300px', overflowY: 'auto', paddingRight: '6px' }}>
@@ -144,7 +152,9 @@ export default function DashboardView({
                 ))
               ) : (
                 <div style={{ color: '#64748b', fontSize: '0.92rem' }}>
-                  Belum ada peringatan dari backend.
+                  {isLiveWarnings
+                    ? 'Semua siswa yang terpantau sedang fokus.'
+                    : 'Belum ada peringatan dari backend.'}
                 </div>
               )}
             </div>

@@ -131,7 +131,6 @@ export default function App() {
     setTeachers: teachers.setTeachers,
     setBackendClassrooms: classrooms.setBackendClassrooms,
     setBoxes: live.setBoxes,
-    setLiveLog: live.setLiveLog,
     topClassroomFallback: classrooms.backendClassrooms,
   });
 
@@ -258,6 +257,7 @@ export default function App() {
             topClassroomRankings={dashboard.topClassroomRankings}
             topStudentPerformers={dashboard.topStudentPerformers}
             warnings={dashboard.warnings}
+            isLiveWarnings={dashboard.isLiveWarnings}
           />
         )}
 
@@ -274,6 +274,9 @@ export default function App() {
               live.setStreamUrl('');
             }}
             liveLog={live.liveLog}
+            detectedPeople={live.detectedPeople}
+            detectionStreamActive={live.detectionStreamActive}
+            detectionError={live.detectionError}
             sessions={sessions.sessions}
             selectedStreamSessionId={live.selectedStreamSessionId}
             onSelectStreamSession={live.setSelectedStreamSessionId}

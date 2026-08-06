@@ -1,6 +1,11 @@
+import { detectionLabel } from '../../imports';
+
 export default function LiveView({
   imgRef,
   canvasRef,
+  detectedPeople,
+  detectionStreamActive,
+  detectionError,
   streamUrl,
   streamError,
   streamLoading,
@@ -65,24 +70,63 @@ export default function LiveView({
         <div className="camera-result-card">
           <div className="card-header" style={{ marginBottom: '16px' }}>
             <div>
-              <h2 className="card-title" style={{ fontSize: '1rem' }}>Classroom AI Detection Result</h2>
-              <p className="card-subtitle">Status atensi real-time terdeteksi kamera</p>
+              <h2 className="card-title" style={{ fontSize: '1rem' }}>Hasil Deteksi Kamera</h2>
+              <p className="card-subtitle">
+                {streamUrl
+                  ? `${detectedPeople} orang terdeteksi di frame terakhir`
+                  : 'Status atensi real-time terdeteksi kamera'}
+              </p>
             </div>
           </div>
 
           <div className="result-list">
-            {liveLog.length > 0 ? (
-              liveLog.map((result, index) => (
-                <div className="result-item" key={`${result.name}-${index}`}>
-                  <span className="result-student-name">{result.name}</span>
-                  <span className={`badge ${result.status === 'Attentive' ? 'badge-aktif' : 'badge-tidak-aktif'}`}>
-                    {result.status}
-                  </span>
-                </div>
-              ))
+            {!streamUrl ? (
+              <div style={{ color: '#64748b', fontSize: '0.92rem' }}>
+                Mulai stream untuk melihat hasil deteksi.
+              </div>
+            ) : detectionError ? (
+              <div
+                role="alert"
+                style={{
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  background: '#fef2f2',
+                  border: '1px solid #fca5a5',
+                  color: '#b91c1c',
+                  fontSize: '0.88rem',
+                }}
+              >
+                <strong style={{ display: 'block', marginBottom: '4px' }}>
+                  Hasil deteksi tidak dapat diambil
+                </strong>
+                {detectionError}
+              </div>
+            ) : !detectionStreamActive ? (
+              <div style={{ color: '#64748b', fontSize: '0.92rem' }}>
+                Video berjalan, tetapi backend melaporkan stream kamera belum aktif.
+                Coba hentikan lalu mulai ulang stream.
+              </div>
+            ) : liveLog.length > 0 ? (
+              liveLog.map((result) => {
+                const isDetected = Boolean(result.label);
+                const badgeClass = result.label === 'focus'
+                  ? 'badge-aktif'
+                  : 'badge-tidak-aktif';
+
+                return (
+                  <div className="result-item" key={result.id}>
+                    <span className="result-student-name">{result.name}</span>
+                    <span className={`badge ${isDetected ? badgeClass : 'badge-tidak-aktif'}`}>
+                      {detectionLabel(result.label)}
+                      {result.confidence ? ` ${Math.round(result.confidence * 100)}%` : ''}
+                    </span>
+                  </div>
+                );
+              })
             ) : (
               <div style={{ color: '#64748b', fontSize: '0.92rem' }}>
-                Belum ada data live dari backend.
+                Belum ada siswa yang diabsen pada sesi ini, sehingga deteksi belum
+                bisa dicocokkan ke nama siswa.
               </div>
             )}
           </div>

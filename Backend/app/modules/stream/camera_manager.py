@@ -172,6 +172,14 @@ class CameraManager:
             time.sleep(0.04)
 
     @classmethod
+    def get_latest_detections(cls, endpoint: str):
+        """Hasil deteksi terbaru dari AI worker, atau None bila stream mati."""
+        stream = cls._active_streams.get(endpoint)
+        if not stream:
+            return None
+        return list(stream.detections)
+
+    @classmethod
     def get_evaluation_state(cls, endpoint: str):
         """None bila stream belum aktif, selain itu True/False."""
         stream = cls._active_streams.get(endpoint)

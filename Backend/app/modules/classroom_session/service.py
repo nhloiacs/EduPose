@@ -374,6 +374,61 @@ class ClassroomSessionService:
         return session
 
     @staticmethod
+    def get_live_detections(db: Session, session_id: uuid.UUID) -> dict:
+        """
+        Hasil deteksi kamera terbaru yang sudah dipetakan ke nama siswa,
+        memakai posisi duduk hasil absensi (logika sama dengan rekap sesi).
+        """
+        session = ClassroomSessionRepository.get_by_id(db, session_id)
+        if not session:
+            raise NotFoundException("Sesi kelas tidak ditemukan.")
+
+        endpoint = session.camera.endpoint if session.camera else None
+        detections = (
+            CameraManager.get_latest_detections(endpoint) if endpoint else None
+        )
+
+        if detections is None:
+            return {"stream_active": False, "students": []}
+
+        seatings = (
+            db.query(SessionSeating, Student)
+            .join(Student, SessionSeating.student_id == Student.id)
+            .filter(SessionSeating.session_id == session_id)
+            .all()
+        )
+
+        RADIUS = 150.0
+        students = []
+        for seating, student in seatings:
+            matched_label = None
+            matched_confidence = None
+            min_dist = float("inf")
+            for det in detections:
+                dx = det["center"][0] - seating.pos_x
+                dy = det["center"][1] - seating.pos_y
+                dist = math.hypot(dx, dy)
+                if dist < min_dist and dist <= RADIUS:
+                    min_dist = dist
+                    matched_label = det["label"]
+                    matched_confidence = det["confidence"]
+
+            students.append(
+                {
+                    "id": student.id,
+                    "name": student.name,
+                    "label": matched_label,
+                    "confidence": matched_confidence,
+                }
+            )
+
+        return {
+            "stream_active": True,
+            "detected_people": len(detections),
+            "students": students,
+        }
+
+    @staticmethod
     def get_evaluation_status(db: Session, session_id: uuid.UUID) -> dict:
         """Status stream & evaluasi terkini, dipakai UI untuk memulihkan tampilan."""
         session = ClassroomSessionRepository.get_by_id(db, session_id)

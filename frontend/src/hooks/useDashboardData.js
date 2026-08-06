@@ -6,8 +6,10 @@ import {
   getAverageFocusFromMetrics,
   getDashboardMetrics,
   getDashboardSummary,
+  getDashboardLiveWarnings,
   getDashboardWarnings,
   getDateRange,
+  mapLiveWarnings,
   getTopPerformers,
   listCollection,
   mapClassroomRankings,
@@ -19,6 +21,10 @@ import {
 } from '../imports';
 
 const REFRESH_INTERVAL_MS = 30000;
+
+// Peringatan atensi diperbarui jauh lebih sering daripada data dashboard lain
+// karena bersumber dari deteksi kamera yang berjalan tiap 5 detik.
+const LIVE_WARNING_INTERVAL_MS = 4000;
 
 // Rentang cadangan bila rentang terpilih belum menghasilkan data sama sekali.
 const FALLBACK_RANGE_DAYS = [7, 30, 90, 365];
@@ -37,7 +43,6 @@ export function useDashboardData({
   setTeachers,
   setBackendClassrooms,
   setBoxes,
-  setLiveLog,
   topClassroomFallback = [],
 }) {
   const [students, setStudents] = useState([]);
@@ -48,9 +53,39 @@ export function useDashboardData({
   const [metricsByGranularity, setMetricsByGranularity] = useState({ daily: [], weekly: [], monthly: [] });
   const [topClassroomRankings, setTopClassroomRankings] = useState([]);
   const [topStudentPerformers, setTopStudentPerformers] = useState([]);
+  const [liveWarnings, setLiveWarnings] = useState([]);
+  const [hasActiveSession, setHasActiveSession] = useState(false);
   const [metricsRangeDays, setMetricsRangeDays] = useState(7);
   const [metricsRangeUsed, setMetricsRangeUsed] = useState(7);
   const [metricsError, setMetricsError] = useState('');
+
+  // Peringatan real-time dari kamera pada sesi yang sedang berlangsung.
+  useEffect(() => {
+    if (!authToken) return undefined;
+
+    let isActive = true;
+
+    const loadLiveWarnings = async () => {
+      try {
+        const response = await getDashboardLiveWarnings(authToken);
+        if (!isActive) return;
+
+        const data = response.data ?? {};
+        setHasActiveSession(Boolean(data.has_active_session));
+        setLiveWarnings(mapLiveWarnings(data.students));
+      } catch {
+        if (!isActive) return;
+        // Endpoint live gagal: panel otomatis kembali ke data historis.
+        setHasActiveSession(false);
+        setLiveWarnings([]);
+      }
+    };
+
+    loadLiveWarnings();
+    const intervalId = setInterval(loadLiveWarnings, LIVE_WARNING_INTERVAL_MS);
+
+    return () => { isActive = false; clearInterval(intervalId); };
+  }, [authToken]);
 
   useEffect(() => {
     let isActive = true;
@@ -222,7 +257,6 @@ export function useDashboardData({
 
         setStudents(nextStudents);
         setBoxes(mergeBoxesFromStudents(nextStudents));
-        setLiveLog(nextStudents.map((student) => ({ name: student.name, status: student.status })));
         setLastSyncedAt(new Date());
 
         const summaryData = summaryResult.status === 'fulfilled'
@@ -265,6 +299,8 @@ export function useDashboardData({
     setTopClassroomRankings([]);
     setTopStudentPerformers([]);
     setMetricsError('');
+    setLiveWarnings([]);
+    setHasActiveSession(false);
   };
 
   // ---- Derived values -------------------------------------------------------
@@ -289,9 +325,14 @@ export function useDashboardData({
     ? { name: classStats[0].name, studentCount: classStats[0].value }
     : null;
 
+  // Selama ada sesi berjalan, peringatan diambil dari kamera. Di luar itu,
+  // panel kembali menampilkan rata-rata historis dari endpoint dashboard.
+  const displayedWarnings = hasActiveSession ? liveWarnings : warnings;
+
   return {
     students,
-    warnings,
+    warnings: displayedWarnings,
+    isLiveWarnings: hasActiveSession,
     dashboardSummary,
     dailyMetrics,
     weeklyMetrics,
@@ -307,7 +348,7 @@ export function useDashboardData({
     averageAttention,
     topStudent,
     bestClassroom,
-    alertCount: warnings.length,
+    alertCount: displayedWarnings.length,
     resetDashboard,
   };
 }
