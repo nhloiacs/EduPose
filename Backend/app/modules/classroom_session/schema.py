@@ -102,6 +102,12 @@ class StudentAttendanceOption(BaseModel):
     id: uuid.UUID
     name: str
     status: str
+    nis: Optional[str] = None
+
+
+class EvaluationStatusResponse(BaseModel):
+    stream_active: bool
+    is_evaluating: bool
 
 
 class RegisterStudentResponse(BaseModel):

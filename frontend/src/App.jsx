@@ -468,6 +468,8 @@ export default function App() {
           sessionDetailError={sessions.sessionDetailError}
           isTeacherUser={auth.isTeacherUser}
           sessionActionState={sessions.sessionActionState}
+          sessionActionMessage={sessions.sessionActionMessage}
+          isEvaluating={sessions.isEvaluating}
           registerStudentId={sessions.registerStudentId}
           setRegisterStudentId={sessions.setRegisterStudentId}
           registerStudentOptions={sessions.registerStudentOptions}

@@ -231,7 +231,11 @@ export const apiRequest = async (config) => {
       detailMsg = detail;
     }
 
-    const errorMessage = baseMessage || detailMsg || payload?.message || `Request failed with status ${response.status}`;
+    const serverFallback = response.status >= 500
+      ? `Terjadi kesalahan di server (HTTP ${response.status}). Periksa log backend untuk detailnya.`
+      : `Permintaan gagal dengan status ${response.status}.`;
+
+    const errorMessage = baseMessage || detailMsg || payload?.message || serverFallback;
     throw new Error(errorMessage);
   }
 
@@ -403,6 +407,29 @@ export const createClassroomSession = (sessionData, token) =>
 export const getClassroomSessionDetail = (sessionId, token) =>
   apiRequest({ path: `/classroom-sessions/${sessionId}`, method: 'GET', token })
     .then((payload) => normalizeBaseResponse(payload));
+
+export const getSessionEvaluationStatus = (sessionId, token) =>
+  apiRequest({
+    path: `/classroom-sessions/${sessionId}/evaluation-status`,
+    method: 'GET',
+    token,
+  }).then((payload) => normalizeBaseResponse(payload));
+
+export const getSessionAttendance = (sessionId, token) =>
+  apiRequest({
+    path: `/classroom-sessions/${sessionId}/attendance`,
+    method: 'GET',
+    token,
+  }).then((payload) => normalizeBaseResponse(payload));
+
+/** Terjemahan status kehadiran dari backend ke label berbahasa Indonesia. */
+export const ATTENDANCE_LABELS = {
+  PRESENT: 'Hadir',
+  ABSENT: 'Tidak hadir',
+  NOT_REGISTERED: 'Belum diabsen',
+};
+
+export const attendanceLabel = (status) => ATTENDANCE_LABELS[status] ?? 'Belum diabsen';
 
 export const registerStudentPose = (sessionId, token, studentId) =>
   apiRequest({

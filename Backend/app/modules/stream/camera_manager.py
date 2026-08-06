@@ -14,6 +14,9 @@ logger = logging.getLogger(__name__)
 # backend di Docker tidak mencoba RTP/UDP yang sering gagal pada Windows.
 os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp")
 
+# Batas kegagalan baca berturut-turut sebelum stream dianggap mati.
+MAX_READ_FAILURES = 150
+
 
 def _resolve_camera_endpoint(endpoint: str) -> str:
     """Make a Windows-host RTSP endpoint reachable from the API container."""
@@ -37,8 +40,38 @@ class ActiveStream:
         self.detections = []
         self.is_running = True
         self.is_evaluating = False
+        # Pembacaan kamera berjalan di thread sendiri supaya frame tetap
+        # diperbarui meskipun tidak ada penonton stream. Tanpa ini, menutup
+        # halaman atau me-refresh browser akan membekukan `latest_frame`,
+        # sehingga evaluasi hanya mencatat frame lama berulang-ulang.
+        self.reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
+        self.reader_thread.start()
         self.ai_thread = threading.Thread(target=self._ai_worker_loop, daemon=True)
         self.ai_thread.start()
+
+    def _reader_loop(self):
+        consecutive_failures = 0
+        while self.is_running:
+            if not self.cap.isOpened():
+                consecutive_failures += 1
+            else:
+                success, frame = self.cap.read()
+                if success:
+                    consecutive_failures = 0
+                    self.latest_frame = frame
+                else:
+                    consecutive_failures += 1
+
+            if consecutive_failures >= MAX_READ_FAILURES:
+                logger.error(
+                    "[STREAM] Kamera %s gagal dibaca %s kali berturut-turut, stream dihentikan.",
+                    self.endpoint,
+                    consecutive_failures,
+                )
+                self.is_running = False
+                break
+
+            time.sleep(0.02 if consecutive_failures == 0 else 0.2)
 
     def _ai_worker_loop(self):
         while self.is_running:
@@ -67,11 +100,11 @@ class ActiveStream:
         finally:
             db.close()
 
-    def read_and_draw(self):
-        success, frame = self.cap.read()
-        if not success:
-            return False, None
-        self.latest_frame = frame.copy()
+    def get_annotated_frame(self):
+        """Frame terbaru beserta kotak hasil deteksi, atau None bila belum ada."""
+        if self.latest_frame is None:
+            return None
+        frame = self.latest_frame.copy()
         for det in self.detections:
             x1, y1, x2, y2 = det["bbox"]
             label = det["label"]
@@ -89,7 +122,7 @@ class ActiveStream:
             cv2.putText(
                 frame, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2
             )
-        return True, frame
+        return frame
 
     def release(self):
         self.is_running = False
@@ -114,24 +147,37 @@ class CameraManager:
 
     @classmethod
     def generate_frames(cls, endpoint: str, session_id: uuid.UUID):
+        """
+        Hanya mengirim frame ke penonton. Pembacaan kamera dilakukan oleh
+        thread reader, sehingga penonton yang terputus tidak menghentikan
+        pembacaan maupun evaluasi.
+        """
         stream = cls.get_or_create_stream(endpoint, session_id)
         if not stream.cap.isOpened():
             logger.error(f"[STREAM] Gagal membuka kamera: {endpoint}")
             return
-        try:
-            while stream.is_running:
-                success, frame = stream.read_and_draw()
-                if not success:
-                    break
-                ret, buffer = cv2.imencode(".jpg", frame)
-                if not ret:
-                    continue
-                yield (
-                    b"--frame\r\n"
-                    b"Content-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n"
-                )
-        finally:
-            pass
+
+        while stream.is_running:
+            frame = stream.get_annotated_frame()
+            if frame is None:
+                time.sleep(0.1)
+                continue
+            ret, buffer = cv2.imencode(".jpg", frame)
+            if not ret:
+                continue
+            yield (
+                b"--frame\r\n"
+                b"Content-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n"
+            )
+            time.sleep(0.04)
+
+    @classmethod
+    def get_evaluation_state(cls, endpoint: str):
+        """None bila stream belum aktif, selain itu True/False."""
+        stream = cls._active_streams.get(endpoint)
+        if not stream:
+            return None
+        return stream.is_evaluating
 
     @classmethod
     def stop_stream(cls, endpoint: str):

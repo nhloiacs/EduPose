@@ -6,13 +6,24 @@ import {
   endEvaluation,
   getClassroomSessionDetail,
   getClassroomSessions,
-  getClassroomStudents,
+  getSessionAttendance,
+  getSessionEvaluationStatus,
   listCollection,
   registerStudentPose,
   startEvaluation,
 } from '../imports';
 
 const EMPTY_SESSION_FORM = { classroom_id: '', camera_id: '', subject: '' };
+
+/** Ubah respons kehadiran backend menjadi opsi dropdown absensi. */
+const toAttendanceOptions = (students) => (Array.isArray(students)
+  ? students.map((student) => ({
+    id: student.id,
+    name: student.name,
+    nis: student.nis ?? '',
+    status: student.status,
+  }))
+  : []);
 
 /**
  * Owns classroom sessions: list, create form, detail modal and teacher session actions.
@@ -43,7 +54,11 @@ export function useSessions({
   const [sessionDetailLoading, setSessionDetailLoading] = useState(false);
   const [sessionDetailError, setSessionDetailError] = useState('');
   const [isSessionDetailOpen, setIsSessionDetailOpen] = useState(false);
+  // 'idle' | 'register' | 'start-eval' | 'end-eval' | 'end-session'
   const [sessionActionState, setSessionActionState] = useState('idle');
+  const [sessionActionMessage, setSessionActionMessage] = useState(null);
+  // Status evaluasi hanya disimpan di memori stream backend, jadi UI melacaknya sendiri.
+  const [isEvaluating, setIsEvaluating] = useState(false);
   const [registerStudentId, setRegisterStudentId] = useState('');
   const [registerStudentOptions, setRegisterStudentOptions] = useState([]);
 
@@ -157,6 +172,9 @@ export function useSessions({
     setSessionDetail(null);
     setRegisterStudentOptions([]);
     setRegisterStudentId('');
+    setSessionActionMessage(null);
+    setSessionActionState('idle');
+    setIsEvaluating(false);
 
     try {
       const response = await getClassroomSessionDetail(sessionId, authToken);
@@ -167,15 +185,22 @@ export function useSessions({
         setSessionDetailError('Data sesi tidak tersedia.');
       }
 
-      if (sessionData?.classroom_id) {
-        const studentResponse = await getClassroomStudents(sessionData.classroom_id, authToken, { page: 1, size: 50 });
-        const options = Array.isArray(studentResponse.items)
-          ? studentResponse.items.map((student) => ({
-            id: student.id,
-            label: `${student.name}${student.nis ? ` (${student.nis})` : ''}`,
-          }))
-          : [];
-        setRegisterStudentOptions(options);
+      if (sessionData) {
+        // Status kehadiran dan status evaluasi diambil dari backend supaya
+        // tetap benar walau modal ditutup, halaman di-refresh, atau pengguna
+        // sempat berpindah menu.
+        const [attendanceResult, evaluationResult] = await Promise.allSettled([
+          getSessionAttendance(sessionId, authToken),
+          getSessionEvaluationStatus(sessionId, authToken),
+        ]);
+
+        if (attendanceResult.status === 'fulfilled') {
+          setRegisterStudentOptions(toAttendanceOptions(attendanceResult.value.data));
+        }
+
+        if (evaluationResult.status === 'fulfilled') {
+          setIsEvaluating(Boolean(evaluationResult.value.data?.is_evaluating));
+        }
       }
     } catch (error) {
       setSessionDetailError(error instanceof Error ? error.message : 'Gagal mengambil detail sesi.');
@@ -189,40 +214,70 @@ export function useSessions({
     setSessionDetail(null);
     setSessionDetailError('');
     setSessionDetailLoading(false);
+    setSessionActionMessage(null);
+    setSessionActionState('idle');
+  };
+
+  const notify = (type, text) => {
+    setSessionActionMessage({ type, text });
+    setBackendMessage(text);
   };
 
   const requireAuth = () => {
     if (!authToken) {
-      setBackendMessage('Silakan login untuk melakukan aksi sesi');
+      notify('error', 'Silakan login terlebih dahulu untuk melakukan aksi sesi.');
       return false;
     }
     return true;
+  };
+
+  const errorText = (error, fallback) => (error instanceof Error ? error.message : fallback);
+
+  /**
+   * Semua aksi backend (absensi maupun evaluasi) mensyaratkan stream kamera
+   * sudah aktif di sisi server. Karena itu stream dinyalakan lebih dulu lalu
+   * diberi jeda singkat supaya frame pertama sempat masuk.
+   */
+  const ensureStreamReady = async (sessionId) => {
+    await onMonitorStream?.(sessionId);
+    await new Promise((resolve) => setTimeout(resolve, 1200));
   };
 
   const handleRegisterStudentPose = async (sessionId) => {
     if (!requireAuth()) return;
 
     if (!registerStudentId) {
-      setBackendMessage('Pilih siswa terlebih dahulu sebelum register pose.');
+      notify('error', 'Pilih siswa terlebih dahulu sebelum melakukan absensi.');
       return;
     }
 
-    setBackendMessage('Mendaftarkan pose siswa...');
-    setSessionActionState('loading');
+    setSessionActionState('register');
+    notify('info', 'Menyiapkan kamera, minta siswa mengangkat tangan...');
+
     try {
+      await ensureStreamReady(sessionId);
       const response = await registerStudentPose(sessionId, authToken, registerStudentId);
       const data = response.data ?? null;
+
       if (data) {
         setSessionDetail((previous) => (previous ? {
           ...previous,
           present_count: data.present_count,
           absent_count: data.absent_count,
         } : previous));
+
       }
-      setBackendMessage(response.message || 'Register student pose selesai');
+
+      // Respons register hanya memuat siswa yang sudah punya kursi, sehingga
+      // daftar lengkap diambil ulang agar siswa yang belum diabsen tetap ada.
+      const attendanceResponse = await getSessionAttendance(sessionId, authToken);
+      setRegisterStudentOptions(toAttendanceOptions(attendanceResponse.data));
+
+      setRegisterStudentId('');
+      notify('success', response.message || 'Siswa berhasil diabsen dan posisinya disimpan.');
     } catch (error) {
       console.error(error);
-      setBackendMessage(error instanceof Error ? error.message : 'Gagal register student pose');
+      notify('error', errorText(error, 'Gagal melakukan absensi siswa.'));
     } finally {
       setSessionActionState('idle');
     }
@@ -231,17 +286,18 @@ export function useSessions({
   const handleStartEvaluation = async (sessionId) => {
     if (!requireAuth()) return;
 
-    setBackendMessage('Memulai evaluasi...');
-    setSessionActionState('loading');
+    setSessionActionState('start-eval');
+    notify('info', 'Menyalakan stream dan memulai evaluasi...');
+
     try {
-      await onMonitorStream?.(sessionId);
-      // Beri jeda singkat agar stream sempat siap di backend.
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      await ensureStreamReady(sessionId);
       const response = await startEvaluation(sessionId, authToken);
-      setBackendMessage(response.message || String(response.data ?? 'Evaluation started'));
+      setIsEvaluating(true);
+      notify('success', response.message || 'Evaluasi AI dimulai. Metrik sedang dicatat.');
     } catch (error) {
       console.error(error);
-      setBackendMessage(error instanceof Error ? error.message : 'Gagal start evaluation');
+      setIsEvaluating(false);
+      notify('error', errorText(error, 'Gagal memulai evaluasi.'));
     } finally {
       setSessionActionState('idle');
     }
@@ -250,14 +306,16 @@ export function useSessions({
   const handleEndEvaluation = async (sessionId) => {
     if (!requireAuth()) return;
 
-    setBackendMessage('Mengakhiri evaluasi...');
-    setSessionActionState('loading');
+    setSessionActionState('end-eval');
+    notify('info', 'Menghentikan evaluasi...');
+
     try {
       const response = await endEvaluation(sessionId, authToken);
-      setBackendMessage(response.message || String(response.data ?? 'Evaluation ended'));
+      setIsEvaluating(false);
+      notify('success', response.message || 'Evaluasi AI dihentikan. Kamera tetap standby untuk absensi.');
     } catch (error) {
       console.error(error);
-      setBackendMessage(error instanceof Error ? error.message : 'Gagal end evaluation');
+      notify('error', errorText(error, 'Gagal menghentikan evaluasi.'));
     } finally {
       setSessionActionState('idle');
     }
@@ -266,32 +324,35 @@ export function useSessions({
   const handleEndClassroomSession = async (sessionId) => {
     if (!requireAuth()) return;
 
-    if (!window.confirm('Apakah Anda yakin ingin mengakhiri sesi ini?')) {
-      setBackendMessage('Aksi batalkan: sesi tidak diakhiri.');
+    if (!window.confirm('Apakah Anda yakin ingin mengakhiri sesi ini? Metrik akan direkap dan sesi tidak dapat dilanjutkan.')) {
+      notify('info', 'Aksi dibatalkan, sesi tidak diakhiri.');
       return;
     }
 
-    setBackendMessage('Mengakhiri sesi...');
-    setSessionActionState('loading');
+    setSessionActionState('end-session');
+    notify('info', 'Mengakhiri sesi dan merekap metrik...');
+
     try {
       const response = await endClassroomSession(sessionId, authToken);
-      setBackendMessage(response.message || String(response.data ?? 'Session ended'));
+      setIsEvaluating(false);
 
       const endedAt = new Date().toISOString();
 
-      setSessionDetail((previous) => (previous && previous.id === sessionId
-        ? { ...previous, status: 'ended', end_time: endedAt }
+      setSessionDetail((previous) => (previous && String(previous.id) === String(sessionId)
+        ? { ...previous, status: 'FINISHED', end_time: endedAt }
         : previous));
 
       setSessions((previous) => previous.map((session) => (String(session.id) === String(sessionId)
-        ? { ...session, status: 'ended', end_time: endedAt }
+        ? { ...session, status: 'FINISHED', end_time: endedAt }
         : session)));
+
+      notify('success', response.message || 'Sesi kelas berhasil diakhiri, metrik berhasil direkap.');
 
       const listResponse = await listCollection('/classroom-sessions', authToken, { page: 1, size: 10 });
       setSessions(listResponse.items || []);
     } catch (error) {
       console.error(error);
-      setBackendMessage(error instanceof Error ? error.message : 'Gagal mengakhiri sesi');
+      notify('error', errorText(error, 'Gagal mengakhiri sesi.'));
     } finally {
       setSessionActionState('idle');
     }
@@ -316,6 +377,8 @@ export function useSessions({
     sessionDetailError,
     isSessionDetailOpen,
     sessionActionState,
+    sessionActionMessage,
+    isEvaluating,
     registerStudentId,
     setRegisterStudentId,
     registerStudentOptions,
