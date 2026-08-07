@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:17
+    container_name: smart_classroom_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: smart_classroom
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./Backend/database/init:/docker-entrypoint-initdb.d
+    restart: always
+
+  api:
+    build: ./Backend
+    container_name: smart_classroom_api
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - db
+    volumes:
+      - ./Backend:/app
+    restart: always
+
+  frontend:
+    build: ./frontend
+    container_name: smart_classroom_web
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    restart: always
+
+volumes:
+  postgres_data:
