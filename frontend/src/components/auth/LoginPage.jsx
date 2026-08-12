@@ -75,10 +75,10 @@ export default function LoginPage({
             </label>
 
             <label className="auth-field">
-              <span>password123</span>
+              <span>Password</span>
               <input
                 type="password"
-                placeholder="Masukkan password"
+                placeholder="password123"
                 value={loginForm.password}
                 onChange={(event) => setLoginForm((previousForm) => ({ ...previousForm, password: event.target.value }))}
               />

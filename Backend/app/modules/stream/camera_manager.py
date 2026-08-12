@@ -4,9 +4,11 @@ import logging
 import os
 import cv2
 import uuid
+import asyncio
 from app.database.database import SessionLocal
 from app.models.frame_log import FrameLog
 from app.modules.stream.ai_processor import AIProcessor
+from app.modules.stream.notifier import notifier
 
 logger = logging.getLogger(__name__)
 
@@ -35,15 +37,16 @@ class ActiveStream:
     def __init__(self, endpoint, session_id):
         self.endpoint = _resolve_camera_endpoint(endpoint)
         self.session_id = session_id
-        self.cap = cv2.VideoCapture(0 if self.endpoint == "0" else self.endpoint, cv2.CAP_FFMPEG)
+        self.cap = cv2.VideoCapture(
+            0 if self.endpoint == "0" else self.endpoint, cv2.CAP_FFMPEG
+        )
         self.latest_frame = None
         self.detections = []
         self.is_running = True
         self.is_evaluating = False
-        # Pembacaan kamera berjalan di thread sendiri supaya frame tetap
-        # diperbarui meskipun tidak ada penonton stream. Tanpa ini, menutup
-        # halaman atau me-refresh browser akan membekukan `latest_frame`,
-        # sehingga evaluasi hanya mencatat frame lama berulang-ulang.
+        self.last_alert_time = 0
+        self.DISTRACTED_THRESHOLD = 3  # Minimal 3 anak nggak fokus
+        self.COOLDOWN_SECONDS = 180  # Puasa notif selama 3 menit
         self.reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
         self.reader_thread.start()
         self.ai_thread = threading.Thread(target=self._ai_worker_loop, daemon=True)
@@ -82,6 +85,31 @@ class ActiveStream:
                     self.detections = new_detections
                     if self.is_evaluating and len(new_detections) > 0:
                         self._save_frame_log(new_detections)
+                        distracted_count = sum(
+                            1 for d in new_detections if d["label"] == "distracted"
+                        )
+                        if distracted_count >= self.DISTRACTED_THRESHOLD:
+                            current_time = time.time()
+                            if (
+                                current_time - self.last_alert_time
+                                >= self.COOLDOWN_SECONDS
+                            ):
+                                alert_payload = {
+                                    "type": "ALERT",
+                                    "title": "Perhatian Kelas",
+                                    "message": f"Terdeteksi {distracted_count} siswa sedang tidak fokus.",
+                                    "distracted_count": distracted_count,
+                                    "timestamp": current_time,
+                                }
+                                asyncio.run(
+                                    notifier.broadcast_alert(
+                                        str(self.session_id), alert_payload
+                                    )
+                                )
+                                self.last_alert_time = current_time
+                                logger.info(
+                                    f"[ALERT] Notifikasi dikirim ke guru untuk sesi {self.session_id}"
+                                )
                 except Exception as e:
                     logger.error(f"[AI WORKER] Error: {e}")
             time.sleep(5.0)
@@ -101,7 +129,6 @@ class ActiveStream:
             db.close()
 
     def get_annotated_frame(self):
-        """Frame terbaru beserta kotak hasil deteksi, atau None bila belum ada."""
         if self.latest_frame is None:
             return None
         frame = self.latest_frame.copy()
@@ -115,6 +142,8 @@ class ActiveStream:
                 color = (0, 0, 255)  # Merah (Red)
             elif label == "raise-hand":
                 color = (0, 255, 255)  # Kuning (Yellow)
+            elif label == "unknown":
+                color = (128, 128, 128)  # Abu-abu (Gray) untuk confidence rendah
             else:
                 color = (255, 255, 255)  # Putih (Default kalau '?')
             text = f"Student | {label} ({conf * 100:.1f}%)"

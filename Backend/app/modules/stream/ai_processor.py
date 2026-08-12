@@ -134,8 +134,11 @@ class AIProcessor:
                     proba = ensemble_model.predict_proba(input_data)[0]
                     max_idx = np.argmax(proba)
                     confidence = proba[max_idx]
-                    raw_label = str(le.classes_[max_idx])
-                    final_label = LABEL_MAP.get(raw_label, raw_label)
+                    if confidence < 0.40:
+                        final_label = "unknown"
+                    else:
+                        raw_label = str(le.classes_[max_idx])
+                        final_label = LABEL_MAP.get(raw_label, raw_label)
                     detections.append(
                         {
                             "label": final_label,

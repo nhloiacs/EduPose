@@ -1,10 +1,18 @@
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Path,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.database.database import get_db
 from app.models.classroom_session import ClassroomSession
 from app.modules.stream.camera_manager import CameraManager
+from app.modules.stream.notifier import notifier
 
 router = APIRouter(prefix="/stream", tags=["Streaming"])
 
@@ -37,3 +45,14 @@ def stream_session(
         CameraManager.generate_frames(endpoint, session.id),
         media_type="multipart/x-mixed-replace; boundary=frame",
     )
+
+
+@router.websocket("/notifications/{session_id}")
+async def websocket_notifications(websocket: WebSocket, session_id: uuid.UUID):
+    session_str = str(session_id)
+    await notifier.connect(websocket, session_str)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        notifier.disconnect(websocket, session_str)
