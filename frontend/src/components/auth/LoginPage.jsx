@@ -40,8 +40,14 @@ export default function LoginPage({
           </div>
 
           <div className="auth-demo-box">
-            <span className="auth-demo-label">Contoh akun seed</span>
+            <span className="auth-demo-label">Contoh akun principal</span>
             <code>bambang@school.com</code>
+            <span className="auth-demo-note">Password: password123</span>
+          </div>
+
+          <div className="auth-demo-box">
+            <span className="auth-demo-label">Contoh akun teacher</span>
+            <code>henra@school.com</code>
             <span className="auth-demo-note">Password: password123</span>
           </div>
         </section>
@@ -62,14 +68,14 @@ export default function LoginPage({
               <span>Email Login</span>
               <input
                 type="email"
-                placeholder="guru@sekolah.id"
+                placeholder="guru@school.com"
                 value={loginForm.email}
                 onChange={(event) => setLoginForm((previousForm) => ({ ...previousForm, email: event.target.value }))}
               />
             </label>
 
             <label className="auth-field">
-              <span>Password</span>
+              <span>password123</span>
               <input
                 type="password"
                 placeholder="Masukkan password"
