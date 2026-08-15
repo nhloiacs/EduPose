@@ -265,6 +265,8 @@ export default function App() {
           <LiveView
             imgRef={live.imgRef}
             canvasRef={live.canvasRef}
+            hiddenVideoRef={live.hiddenVideoRef} // <--- TAMBAHKAN PROPS INI
+            isDemoActive={live.isDemoActive}     // <--- (Opsional) Kalau mau pakai status aktifnya
             liveLog={live.liveLog}
             detectedPeople={live.detectedPeople}
             detectionStreamActive={live.detectionStreamActive}

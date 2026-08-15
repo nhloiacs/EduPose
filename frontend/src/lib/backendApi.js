@@ -32,6 +32,26 @@ export { ChartJS, ArcElement, BarElement, CategoryScale, Filler, Legend, LineEle
 const DEFAULT_API_BASE_URL = '/api';
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL?.trim() || DEFAULT_API_BASE_URL).replace(/\/$/, '');
+// Mengubah http/https menjadi ws/wss untuk koneksi WebSocket
+// Build WS URL secara dinamis
+export const WS_BASE_URL = (() => {
+  // Kalau VITE_API_BASE_URL di-set eksplisit (misal http://localhost:8000)
+  if (API_BASE_URL.startsWith('http')) {
+    return API_BASE_URL.replace(/^http/, 'ws');
+  }
+  // Kalau path relatif (misal '/api'), gabungkan dengan domain/port browser saat ini
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}${API_BASE_URL}`;
+})();
+
+/** URL WebSocket untuk menerima notifikasi alert dari backend */
+export const getNotificationWsUrl = (sessionId) =>
+  `${WS_BASE_URL}/stream/notifications/${sessionId}`;
+
+/** URL WebSocket untuk mengirim frame webcam dari frontend (Demo Mode) */
+export const getUploadFrameWsUrl = (sessionId) =>
+  `${WS_BASE_URL}/stream/upload-frame/${sessionId}`;
+
 
 export const AUTH_STORAGE_KEY = 'attentionai.auth.session';
 

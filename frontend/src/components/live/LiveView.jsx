@@ -3,6 +3,8 @@ import { detectionLabel } from '../../imports';
 export default function LiveView({
   imgRef,
   canvasRef,
+  hiddenVideoRef,      // <--- Props baru
+  isDemoActive,        // <--- Props baru
   liveLog,
   detectedPeople,
   detectionStreamActive,
@@ -17,11 +19,27 @@ export default function LiveView({
   onSelectStreamSession,
   selectedStreamSession,
   onStartStream,
+  onStartDemoWebcam,   // <--- Props baru
   onStopStream,
 }) {
   return (
     <div className="view-panel">
+      {/* Video tersembunyi untuk nyedot webcam laptop */}
+      <video 
+        ref={hiddenVideoRef} 
+        muted 
+        playsInline 
+        style={{ 
+          position: 'absolute', 
+          opacity: 0, 
+          pointerEvents: 'none', 
+          width: '1px', 
+          height: '1px' 
+        }} 
+      />
+
       <div className="live-container">
+
         <div className="live-feed-card">
           <div className="live-feed-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -151,32 +169,39 @@ export default function LiveView({
           </div>
 
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+            {/* TOMBOL PINTAR (SMART BUTTON) */}
             <button
               type="button"
               className="btn-primary"
-              onClick={() => selectedStreamSessionId && onStartStream(selectedStreamSessionId)}
+              onClick={() => {
+                if (selectedStreamSessionId && selectedStreamSession) {
+                  onStartStream(selectedStreamSessionId, selectedStreamSession);
+                }
+              }}
               disabled={!selectedStreamSessionId || streamLoading}
             >
               {streamLoading ? 'Memulai...' : 'Mulai Stream'}
             </button>
+
+            {/* TOMBOL STOP */}
             <button
               type="button"
               className="btn-secondary"
               onClick={onStopStream}
-              disabled={!streamUrl && !streamError}
+              disabled={!streamUrl && !streamError && !isDemoActive}
             >
-              Hentikan Stream
+              Hentikan
             </button>
           </div>
 
           {streamError && <p role="alert" style={{ color: '#f8d7da', margin: 0 }}>{streamError}</p>}
           {!streamUrl && !streamError && (
             <p style={{ margin: 0, color: '#94a3b8' }}>
-              Tekan tombol <strong>Mulai Stream</strong> untuk memulai aliran backend.
+                Tekan <strong>Mulai Stream</strong> untuk RTSP, atau <strong>Gunakan Webcam</strong> untuk demo menggunakan laptop ini.
             </p>
           )}
+          </div>
         </div>
       </div>
-    </div>
   );
 }

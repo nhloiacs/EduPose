@@ -37,20 +37,31 @@ class ActiveStream:
     def __init__(self, endpoint, session_id):
         self.endpoint = _resolve_camera_endpoint(endpoint)
         self.session_id = session_id
-        self.cap = cv2.VideoCapture(
-            0 if self.endpoint == "0" else self.endpoint, cv2.CAP_FFMPEG
-        )
+        self.is_demo_mode = self.endpoint == "webcam"
+        self.cap = None
+        if not self.is_demo_mode:
+            self.cap = cv2.VideoCapture(
+                0 if self.endpoint == "0" else self.endpoint, cv2.CAP_FFMPEG
+            )
         self.latest_frame = None
         self.detections = []
         self.is_running = True
         self.is_evaluating = False
         self.last_alert_time = 0
-        self.DISTRACTED_THRESHOLD = 3  # Minimal 3 anak nggak fokus
-        self.COOLDOWN_SECONDS = 180  # Puasa notif selama 3 menit
-        self.reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
-        self.reader_thread.start()
+        self.DISTRACTED_THRESHOLD = 3
+        self.COOLDOWN_SECONDS = 180
+
+        if not self.is_demo_mode:
+            self.reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
+            self.reader_thread.start()
+
         self.ai_thread = threading.Thread(target=self._ai_worker_loop, daemon=True)
         self.ai_thread.start()
+
+    def update_frame(self, frame):
+        """Fungsi ini dipanggil oleh WebSocket untuk menimpa frame terbaru"""
+        if self.is_running:
+            self.latest_frame = frame
 
     def _reader_loop(self):
         consecutive_failures = 0
@@ -155,7 +166,8 @@ class ActiveStream:
 
     def release(self):
         self.is_running = False
-        self.cap.release()
+        if self.cap:  # Cek cap dulu biar ga error kalau mode demo
+            self.cap.release()
 
 
 class CameraManager:
@@ -176,13 +188,10 @@ class CameraManager:
 
     @classmethod
     def generate_frames(cls, endpoint: str, session_id: uuid.UUID):
-        """
-        Hanya mengirim frame ke penonton. Pembacaan kamera dilakukan oleh
-        thread reader, sehingga penonton yang terputus tidak menghentikan
-        pembacaan maupun evaluasi.
-        """
         stream = cls.get_or_create_stream(endpoint, session_id)
-        if not stream.cap.isOpened():
+
+        # Bypass pengecekan kamera isOpened() kalau ini mode demo
+        if not stream.is_demo_mode and not stream.cap.isOpened():
             logger.error(f"[STREAM] Gagal membuka kamera: {endpoint}")
             return
 
@@ -202,7 +211,6 @@ class CameraManager:
 
     @classmethod
     def get_latest_detections(cls, endpoint: str):
-        """Hasil deteksi terbaru dari AI worker, atau None bila stream mati."""
         stream = cls._active_streams.get(endpoint)
         if not stream:
             return None
@@ -210,7 +218,6 @@ class CameraManager:
 
     @classmethod
     def get_evaluation_state(cls, endpoint: str):
-        """None bila stream belum aktif, selain itu True/False."""
         stream = cls._active_streams.get(endpoint)
         if not stream:
             return None

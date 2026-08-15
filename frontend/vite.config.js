@@ -9,6 +9,7 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+        ws: true, // <--- TAMBAHIN INI BIAR WEBSOCKET IKUT DI-PROXY
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
