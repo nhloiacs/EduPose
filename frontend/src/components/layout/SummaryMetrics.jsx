@@ -34,7 +34,7 @@ export default function SummaryMetrics({
   teacherUsingPhone,
   teacherRaisedHand,
 }) {
-  const sourceLabel = dashboardSummary ? 'Data backend' : 'Belum ada data';
+  const sourceLabel = dashboardSummary ? 'Data sistem' : 'Belum ada data';
 
   return (
     <section className="metrics-grid">

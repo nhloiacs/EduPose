@@ -17,7 +17,7 @@ export default function TeacherFormModal({
     <Modal
       id="teacher-form-modal-title"
       title={editingTeacherId ? 'Ubah Teacher' : 'Tambah Teacher'}
-      subtitle="Data dikirim ke backend sebagai multipart/form-data."
+      subtitle="Lengkapi data guru di bawah ini."
       closeLabel="Tutup form teacher"
       onClose={onClose}
     >

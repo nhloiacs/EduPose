@@ -34,21 +34,9 @@ export default function LoginPage({
               <UserRound size={18} />
               <div>
                 <strong>Akun terhubung</strong>
-                <span>Sinkron dengan backend</span>
+                <span>Sinkron dengan sistem</span>
               </div>
             </div>
-          </div>
-
-          <div className="auth-demo-box">
-            <span className="auth-demo-label">Contoh akun principal</span>
-            <code>bambang@school.com</code>
-            <span className="auth-demo-note">Password: password123</span>
-          </div>
-
-          <div className="auth-demo-box">
-            <span className="auth-demo-label">Contoh akun teacher</span>
-            <code>henra@school.com</code>
-            <span className="auth-demo-note">Password: password123</span>
           </div>
         </section>
 
@@ -59,7 +47,7 @@ export default function LoginPage({
             </div>
             <div>
               <h2>Login</h2>
-              <p>{statusMessage || 'Masukkan akun backend untuk melanjutkan.'}</p>
+              <p>{statusMessage || 'Masukkan akun Anda untuk melanjutkan.'}</p>
             </div>
           </div>
 
@@ -87,7 +75,7 @@ export default function LoginPage({
             {error ? <div className="auth-error">{error}</div> : null}
 
             <button type="submit" className="auth-submit" disabled={isLoading}>
-              {isLoading ? 'Memproses...' : 'Login ke Backend'}
+              {isLoading ? 'Memproses...' : 'Login'}
             </button>
           </form>
         </section>

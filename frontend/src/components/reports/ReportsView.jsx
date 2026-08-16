@@ -44,7 +44,7 @@ export default function ReportsView({
           <Calendar size={20} color="#6366f1" />
           <div>
             <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>Laporan Atensi Siswa</h3>
-            <p className="card-subtitle">Ringkasan periode terkini dari backend</p>
+            <p className="card-subtitle">Ringkasan periode terkini dari sistem</p>
           </div>
         </div>
 
@@ -61,7 +61,7 @@ export default function ReportsView({
             <div className="metric-label">Rata-rata Atensi</div>
             <div className="metric-value-container">
               <div className="metric-value">{averageAttention ? `${averageAttention}%` : '—'}</div>
-              <div className="metric-change up">{averageAttention ? 'Data backend' : 'Belum ada data'}</div>
+              <div className="metric-change up">{averageAttention ? 'Data sistem' : 'Belum ada data'}</div>
             </div>
           </div>
         </div>
@@ -102,7 +102,7 @@ export default function ReportsView({
             <div className="metric-label">Total Peringatan</div>
             <div className="metric-value-container">
               <div className="metric-value">{alertCount}</div>
-              <div className="metric-change down">Data backend</div>
+              <div className="metric-change down">Data sistem</div>
             </div>
           </div>
         </div>
@@ -120,7 +120,7 @@ export default function ReportsView({
             {hasDailyMetrics ? (
               <Line data={dailyTrendData} options={reportsDailyTrendOptions} />
             ) : (
-              <EmptyState>Belum ada data tren harian dari backend.</EmptyState>
+              <EmptyState>Belum ada data tren harian dari sistem.</EmptyState>
             )}
           </div>
         </div>
@@ -136,7 +136,7 @@ export default function ReportsView({
             {hasEmotionChartData ? (
               <Doughnut data={emotionDistributionData} options={emotionDonutOptions} />
             ) : (
-              <EmptyState>Belum ada data emosi dari backend.</EmptyState>
+              <EmptyState>Belum ada data emosi dari sistem.</EmptyState>
             )}
           </div>
 
@@ -168,7 +168,7 @@ export default function ReportsView({
             {hasClassChartData ? (
               <Bar data={classComparisonData} options={classComparisonOptions} />
             ) : (
-              <EmptyState>Belum ada data kelas dari backend.</EmptyState>
+              <EmptyState>Belum ada data kelas dari sistem.</EmptyState>
             )}
           </div>
         </div>
@@ -181,7 +181,7 @@ export default function ReportsView({
             </div>
           </div>
           <div style={{ height: '280px', position: 'relative', display: 'grid', placeItems: 'center' }}>
-            <EmptyState>Belum ada data emosi historis dari backend.</EmptyState>
+            <EmptyState>Belum ada data emosi historis dari sistem.</EmptyState>
           </div>
         </div>
       </div>

@@ -82,7 +82,7 @@ export default function StudentsView({
             {studentLoading ? (
               <tr>
                 <td colSpan={8} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
-                  Memuat data siswa dari backend...
+                  Memuat data siswa dari sistem...
                 </td>
               </tr>
             ) : students.length > 0 ? (
@@ -138,7 +138,7 @@ export default function StudentsView({
                 <td colSpan={8} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
                   {hasFilter
                     ? 'Tidak ada siswa yang cocok dengan filter pencarian.'
-                    : 'Belum ada data siswa dari backend.'}
+                    : 'Belum ada data siswa dari sistem.'}
                 </td>
               </tr>
             )}

@@ -18,7 +18,7 @@ export function useAuthSession() {
   const [currentUser, setCurrentUser] = useState(storedSession.user);
   const [syncState, setSyncState] = useState(storedSession.token ? 'loading' : 'idle');
   const [backendMessage, setBackendMessage] = useState(
-    storedSession.token ? 'Mencoba sinkronisasi data backend...' : 'Belum login ke backend',
+    storedSession.token ? 'Mencoba sinkronisasi data sistem...' : 'Belum login ke sistem',
   );
   const [lastSyncedAt, setLastSyncedAt] = useState(null);
   const [loginError, setLoginError] = useState('');
@@ -32,7 +32,7 @@ export function useAuthSession() {
     event.preventDefault();
     setLoginError('');
     setSyncState('loading');
-    setBackendMessage('Login ke backend...');
+    setBackendMessage('Login ke sistem...');
 
     try {
       const response = await loginRequest(loginForm.email.trim(), loginForm.password);
@@ -47,7 +47,7 @@ export function useAuthSession() {
       setAuthToken(token);
       setCurrentUser(sessionUser);
       setLoginForm((previousForm) => ({ ...previousForm, password: '' }));
-      setBackendMessage(`${response.message || 'Login berhasil'}. Menyinkronkan data backend...`);
+      setBackendMessage(`${response.message || 'Login berhasil'}. Menyinkronkan data sistem...`);
       return true;
     } catch (error) {
       setSyncState('error');
@@ -62,7 +62,7 @@ export function useAuthSession() {
     setAuthToken('');
     setCurrentUser(null);
     setSyncState('idle');
-    setBackendMessage('Belum login ke backend');
+    setBackendMessage('Belum login ke sistem');
     setLastSyncedAt(null);
   };
 

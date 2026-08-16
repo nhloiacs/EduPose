@@ -80,7 +80,7 @@ export default function LiveView({
           {streamError && <p role="alert" style={{ color: '#b91c1c', marginTop: '12px' }}>{streamError}</p>}
           {!streamUrl && !streamError && (
             <p style={{ marginTop: '12px', color: '#475569' }}>
-              Tekan tombol <strong>Mulai Stream</strong> untuk memulai aliran backend. Jika Anda ingin RTSP external, backend perlu diubah lagi.
+              Tekan tombol <strong>Mulai Stream</strong> untuk memulai aliran video.
             </p>
           )}
         </div>
@@ -121,7 +121,7 @@ export default function LiveView({
               </div>
             ) : !detectionStreamActive ? (
               <div style={{ color: '#64748b', fontSize: '0.92rem' }}>
-                Video berjalan, tetapi backend melaporkan stream kamera belum aktif.
+                Video berjalan, tetapi sistem melaporkan stream kamera belum aktif.
                 Coba hentikan lalu mulai ulang stream.
               </div>
             ) : liveLog.length > 0 ? (

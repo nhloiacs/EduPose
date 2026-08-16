@@ -1,7 +1,7 @@
 import { Cpu, LogOut, Settings, User } from '../../imports';
 
 const SYNC_STATUS = {
-  connected: { label: 'Tersinkron dengan backend', color: '#10b981' },
+  connected: { label: 'Tersinkron dengan sistem', color: '#10b981' },
   loading: { label: 'Menyinkronkan data...', color: '#6366f1' },
   error: { label: 'Sinkronisasi gagal', color: '#ef4444' },
   idle: { label: 'Belum tersinkron', color: '#94a3b8' },
@@ -91,7 +91,7 @@ export default function ProfileView({
           <div className="profile-details-card">
             <h3 className="profile-section-title">
               <Settings size={18} color="#6366f1" />
-              <span>Sinkronisasi Backend</span>
+              <span>Sinkronisasi Sistem</span>
             </h3>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>

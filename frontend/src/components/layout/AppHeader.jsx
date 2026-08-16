@@ -18,7 +18,7 @@ const TAB_SUBTITLES = {
   classrooms: 'Kelola kelas dan sinkronisasi pilihan kelas untuk siswa.',
   'classroom-detail': 'Detail kelas berisi sesi dan daftar siswa.',
   reports: 'Analisis tren atensi dan distribusi emosi siswa secara historis.',
-  profile: 'Profil teacher tersinkron dengan backend serta pengaturan sistem.',
+  profile: 'Profil teacher tersinkron dengan sistem serta pengaturan sistem.',
   teachers: 'Tambah dan ubah data teacher.',
 };
 
@@ -69,7 +69,7 @@ export default function AppHeader({
           <span className="connection-dot" />
           <div className="connection-copy">
             <span className="connection-label">Live Stream</span>
-            <strong>Akses stream via endpoint Stream Session</strong>
+            <strong>Siap digunakan</strong>
           </div>
         </div>
 
@@ -78,11 +78,11 @@ export default function AppHeader({
         <div className={`connection-status connection-${healthClass}`}>
           <span className="connection-dot" />
           <div className="connection-copy">
-            <span className="connection-label">Backend API</span>
+            <span className="connection-label">Status Sistem</span>
             <strong>
-              {backendHealthState === 'online' && 'Backend aktif'}
+              {backendHealthState === 'online' && 'Sistem aktif'}
               {backendHealthState === 'checking' && 'Memeriksa'}
-              {backendHealthState === 'offline' && 'Backend tidak aktif'}
+              {backendHealthState === 'offline' && 'Sistem tidak aktif'}
             </strong>
           </div>
         </div>

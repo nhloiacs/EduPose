@@ -84,7 +84,7 @@ export default function DashboardView({
 
           <div style={{ height: '280px', position: 'relative', display: 'grid', placeItems: 'center' }}>
             {isInitialLoading ? (
-              <div style={{ color: '#64748b', fontSize: '0.92rem' }}>Memuat grafik dari backend...</div>
+              <div style={{ color: '#64748b', fontSize: '0.92rem' }}>Memuat grafik dari sistem...</div>
             ) : metricsError ? (
               <div style={{ color: '#b91c1c', fontSize: '0.9rem', textAlign: 'center', maxWidth: '420px' }} role="alert">
                 <strong style={{ display: 'block', marginBottom: '6px' }}>Gagal memuat /dashboard/metrics</strong>
@@ -111,7 +111,7 @@ export default function DashboardView({
             {topClassroomRankings.length > 0 ? (
               <Bar data={classComparisonData} options={classComparisonOptions} />
             ) : (
-              <EmptyState>Belum ada data top classroom performers dari backend.</EmptyState>
+              <EmptyState>Belum ada data top classroom performers dari sistem.</EmptyState>
             )}
           </div>
         </div>
@@ -154,7 +154,7 @@ export default function DashboardView({
                 <div style={{ color: '#64748b', fontSize: '0.92rem' }}>
                   {isLiveWarnings
                     ? 'Semua siswa yang terpantau sedang fokus.'
-                    : 'Belum ada peringatan dari backend.'}
+                    : 'Belum ada peringatan dari sistem.'}
                 </div>
               )}
             </div>
@@ -174,7 +174,7 @@ export default function DashboardView({
                 options={topStudentPerformersOptions}
               />
             ) : (
-              <EmptyState>Belum ada data top student performers dari backend.</EmptyState>
+              <EmptyState>Belum ada data top student performers dari sistem.</EmptyState>
             )}
           </div>
         </div>

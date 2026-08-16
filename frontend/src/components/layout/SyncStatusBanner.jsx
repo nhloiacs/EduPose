@@ -24,7 +24,7 @@ export default function SyncStatusBanner({
 
   const description = errorMessage
     || (isInitialLoading
-      ? 'Sedang mengambil data backend untuk statistik, chart, dan tabel.'
+      ? 'Sedang mengambil data sistem untuk statistik, chart, dan tabel.'
       : isRefreshing
         ? 'Refresh otomatis berjalan tanpa mengganggu data yang sedang tampil.'
         : `Terakhir sinkron ${formatClockLabel(lastSyncedAt)}`);
