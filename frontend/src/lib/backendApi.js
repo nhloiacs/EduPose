@@ -233,6 +233,12 @@ export const apiRequest = async (config) => {
   const payload = await parseJson(response);
 
   if (!response.ok) {
+    if (response.status === 401) {
+      clearStoredSession();
+      window.location.reload(); 
+      throw new Error('Sesi Anda telah berakhir. Silakan login kembali.');
+    }
+
     const baseMessage = normalizeBaseResponse(payload).message || '';
 
     let detailMsg = '';

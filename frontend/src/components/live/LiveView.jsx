@@ -158,13 +158,17 @@ export default function LiveView({
               style={{ width: '100%', maxWidth: '480px', padding: '12px 14px', borderRadius: '14px', border: '1px solid #334155', background: '#0b1220', color: '#f8fafc' }}
             >
               <option value="">Pilih sesi</option>
-              {sessions.map((session) => (
-                <option key={session.id} value={session.id}>
-                  {session.subject
-                    ? `${session.subject} — ${session.classroom_name || session.camera_name || session.id}`
-                    : session.id}
-                </option>
-              ))}
+                {sessions
+                  .filter((session) => session.status === "ONGOING")
+                  .map((session) => (
+                      <option key={session.id} value={session.id}>
+                        {session.subject
+                          ? `${session.subject} — ${session.classroom_name || session.camera_name || session.id} - ${session.status}`
+                          : session.id}
+                      </option>
+                    )
+                  )
+                }
             </select>
           </div>
 
