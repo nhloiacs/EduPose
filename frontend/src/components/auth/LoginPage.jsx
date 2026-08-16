@@ -33,9 +33,17 @@ export default function LoginPage({
             <div className="auth-stat-card">
               <UserRound size={18} />
               <div>
-                <strong>Akun terhubung</strong>
-                <span>Sinkron dengan sistem</span>
+                <strong>Principal</strong>
+                <span>bambang@school.com</span>
               </div>
+            <div className="auth-stat-card">
+              <UserRound size={18} />
+              <div>
+                <strong>Teacher</strong>
+                <span>henra@school.com</span>
+              </div>
+            </div>
+
             </div>
           </div>
         </section>
