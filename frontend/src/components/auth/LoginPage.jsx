@@ -36,14 +36,13 @@ export default function LoginPage({
                 <strong>Principal</strong>
                 <span>bambang@school.com</span>
               </div>
+            </div>
             <div className="auth-stat-card">
               <UserRound size={18} />
               <div>
                 <strong>Teacher</strong>
                 <span>henra@school.com</span>
               </div>
-            </div>
-
             </div>
           </div>
         </section>
