@@ -7,6 +7,8 @@ import uuid
 import asyncio
 from app.database.database import SessionLocal
 from app.models.frame_log import FrameLog
+from app.models.classroom_session import ClassroomSession  # <-- TAMBAHAN IMPORT
+from app.models.student import Student  # <-- TAMBAHAN IMPORT
 from app.modules.stream.ai_processor import AIProcessor
 from app.modules.stream.notifier import notifier
 
@@ -39,17 +41,21 @@ class ActiveStream:
         self.session_id = session_id
         self.is_demo_mode = self.endpoint == "webcam"
         self.cap = None
+
         if not self.is_demo_mode:
             self.cap = cv2.VideoCapture(
                 0 if self.endpoint == "0" else self.endpoint, cv2.CAP_FFMPEG
             )
+
         self.latest_frame = None
         self.detections = []
         self.is_running = True
         self.is_evaluating = False
         self.last_alert_time = 0
-        self.DISTRACTED_THRESHOLD = 3
         self.COOLDOWN_SECONDS = 180
+
+        # --- HITUNG THRESHOLD DINAMIS ---
+        self.DISTRACTED_THRESHOLD = self._calculate_threshold()
 
         if not self.is_demo_mode:
             self.reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
@@ -57,6 +63,40 @@ class ActiveStream:
 
         self.ai_thread = threading.Thread(target=self._ai_worker_loop, daemon=True)
         self.ai_thread.start()
+
+    def _calculate_threshold(self):
+        """Menghitung 1/10 dari total siswa aktif di kelas, minimal 1."""
+        db = SessionLocal()
+        try:
+            session = (
+                db.query(ClassroomSession)
+                .filter(ClassroomSession.id == self.session_id)
+                .first()
+            )
+
+            if session and session.classroom_id:
+                total_students = (
+                    db.query(Student)
+                    .filter(
+                        Student.classroom_id == session.classroom_id,
+                        Student.deleted_at.is_(None),
+                    )
+                    .count()
+                )
+
+                threshold = max(1, total_students // 10)
+
+                logger.info(
+                    f"[STREAM] Sesi {self.session_id} - Total Siswa: {total_students}, Threshold Distracted diset ke: {threshold}"
+                )
+                return threshold
+
+            return 1
+        except Exception as e:
+            logger.error(f"[STREAM] Gagal menghitung threshold dinamis: {e}")
+            return 1
+        finally:
+            db.close()
 
     def update_frame(self, frame):
         """Fungsi ini dipanggil oleh WebSocket untuk menimpa frame terbaru"""
