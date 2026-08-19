@@ -10,7 +10,7 @@ import {
 
 const DETECTION_POLL_INTERVAL_MS = 3000;
 
-export function useLiveStream({ authToken, setBackendMessage }) {
+export function useLiveStream({ authToken, setBackendMessage, onNotification }) {
   const canvasRef = useRef(null);
   const imgRef = useRef(null);
   
@@ -151,6 +151,10 @@ export function useLiveStream({ authToken, setBackendMessage }) {
     try {
       setSelectedStreamSessionId(sessionId);
 
+      // Hubungkan WebSocket notifikasi lebih dulu, terlepas dari sumber kamera
+      // (RTSP maupun webcam demo), supaya alert selalu diterima.
+      connectToNotifications(sessionId);
+
       // 1. Minta izin & nyalakan webcam laptop
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { width: 640, height: 480 } 
@@ -190,9 +194,6 @@ export function useLiveStream({ authToken, setBackendMessage }) {
             );
           }
         }, 100);
-
-        // 3. Hubungkan WebSocket Notifikasi (Suara "Ting!")
-        connectToNotifications(sessionId);
 
         // 4. Set URL stream gambar dari backend agar tag <img> nmapilin hasil anotasi
         setStreamUrl(getMonitorStreamUrl(sessionId));
@@ -234,21 +235,29 @@ export function useLiveStream({ authToken, setBackendMessage }) {
   // --- KONEKSI WEBSOCKET NOTIFIKASI ---
   const connectToNotifications = (sessionId) => {
     if (notificationWsRef.current) notificationWsRef.current.close();
-    
+
     const wsUrl = getNotificationWsUrl(sessionId);
     const ws = new WebSocket(wsUrl);
 
     ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
+
+        // Tampilkan sebagai notifikasi (lonceng header + toast)
+        onNotification?.(payload);
+
         if (payload.type === 'ALERT') {
           const audio = new Audio('/alert.mp3');
-          audio.play().catch(e => console.log('Autoplay audio diblokir browser', e));
-          setBackendMessage(`⚠️ ALERT: ${payload.message}`);
+          audio.play().catch((e) => console.log('Autoplay audio diblokir browser', e));
+          setBackendMessage(`⚠️ ${payload.title || 'Peringatan'}: ${payload.message}`);
         }
       } catch (err) {
-        console.error("Gagal membaca payload notifikasi", err);
+        console.error('Gagal membaca payload notifikasi', err);
       }
+    };
+
+    ws.onerror = () => {
+      console.warn('Koneksi notifikasi terputus.');
     };
 
     notificationWsRef.current = ws;

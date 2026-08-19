@@ -44,6 +44,7 @@ export { default as useCameras } from './hooks/useCameras';
 export { default as useClassrooms } from './hooks/useClassrooms';
 export { default as useDashboardData } from './hooks/useDashboardData';
 export { default as useLiveStream } from './hooks/useLiveStream';
+export { default as useNotifications } from './hooks/useNotifications';
 export { default as useProfile } from './hooks/useProfile';
 export { default as useSessions } from './hooks/useSessions';
 export { default as useStudents } from './hooks/useStudents';
@@ -58,6 +59,8 @@ export { default as Pagination } from './components/common/Pagination';
 // ---- Layout -----------------------------------------------------------------
 export { default as Sidebar } from './components/layout/Sidebar';
 export { default as AppHeader } from './components/layout/AppHeader';
+export { default as NotificationBell } from './components/notifications/NotificationBell';
+export { default as NotificationToasts } from './components/notifications/NotificationToasts';
 export { default as SyncStatusBanner } from './components/layout/SyncStatusBanner';
 export { default as SummaryMetrics } from './components/layout/SummaryMetrics';
 

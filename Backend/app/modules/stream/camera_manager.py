@@ -152,10 +152,8 @@ class ActiveStream:
                                     "distracted_count": distracted_count,
                                     "timestamp": current_time,
                                 }
-                                asyncio.run(
-                                    notifier.broadcast_alert(
-                                        str(self.session_id), alert_payload
-                                    )
+                                notifier.broadcast_alert_threadsafe(
+                                    str(self.session_id), alert_payload
                                 )
                                 self.last_alert_time = current_time
                                 logger.info(

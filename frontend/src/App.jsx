@@ -16,6 +16,7 @@ import {
   useClassrooms,
   useDashboardData,
   useLiveStream,
+  useNotifications,
   useProfile,
   useSessions,
   useStudents,
@@ -24,6 +25,7 @@ import {
   LoginPage,
   Sidebar,
   AppHeader,
+  NotificationToasts,
   SyncStatusBanner,
   SummaryMetrics,
   DashboardView,
@@ -95,9 +97,12 @@ export default function App() {
     currentUser: auth.currentUser,
   });
 
+  const notif = useNotifications();
+
   const live = useLiveStream({
     authToken: auth.authToken,
     setBackendMessage: auth.setBackendMessage,
+    onNotification: notif.pushNotification,
   });
 
   const classrooms = useClassrooms({
@@ -209,6 +214,8 @@ export default function App() {
 
   return (
     <div className="app-container">
+      <NotificationToasts toasts={notif.toasts} onDismiss={notif.dismissToast} />
+
       <Sidebar
         activeTab={ui.activeTab}
         onSelectTab={ui.setActiveTab}
@@ -222,6 +229,12 @@ export default function App() {
           searchQuery={ui.searchQuery}
           onSearchChange={handleSearchChange}
           backendHealthState={health.backendHealthState}
+          notifications={notif.notifications}
+          unreadCount={notif.unreadCount}
+          isNotifPanelOpen={notif.isPanelOpen}
+          onToggleNotifications={notif.togglePanel}
+          onCloseNotifications={notif.closePanel}
+          onClearNotifications={notif.clearNotifications}
         />
 
         <SyncStatusBanner

@@ -1,4 +1,5 @@
 import { Search } from '../../imports';
+import NotificationBell from '../notifications/NotificationBell';
 
 const TAB_TITLES = {
   dashboard: 'Dashboard',
@@ -37,6 +38,12 @@ export default function AppHeader({
   searchQuery,
   onSearchChange,
   backendHealthState,
+  notifications = [],
+  unreadCount = 0,
+  isNotifPanelOpen = false,
+  onToggleNotifications,
+  onCloseNotifications,
+  onClearNotifications,
 }) {
   const showSearchBar = SEARCHABLE_TABS.includes(activeTab);
   const healthClass = backendHealthState === 'online'
@@ -64,6 +71,17 @@ export default function AppHeader({
             />
           </div>
         )}
+
+        <NotificationBell
+          notifications={notifications}
+          unreadCount={unreadCount}
+          isPanelOpen={isNotifPanelOpen}
+          onToggle={onToggleNotifications}
+          onClose={onCloseNotifications}
+          onClear={onClearNotifications}
+        />
+
+        <div style={{ width: 12 }} />
 
         <div className="connection-status connection-connected">
           <span className="connection-dot" />
