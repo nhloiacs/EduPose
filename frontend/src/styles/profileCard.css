@@ -1,0 +1,76 @@
+.profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 100%);
+  border: 1px solid #e0e7ff;
+  margin-bottom: 4px;
+}
+
+.profile-avatar {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #6366f1;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.28);
+  border: 3px solid #ffffff;
+}
+.profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-identity-info { display: grid; gap: 6px; min-width: 0; }
+
+.profile-identity-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-identity-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.profile-tag {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: #e0e7ff;
+  color: #4338ca;
+  text-transform: capitalize;
+}
+.profile-tag.is-active { background: #dcfce7; color: #15803d; }
+.profile-tag.is-inactive { background: #fee2e2; color: #b91c1c; }
+
+/* ---- Avatar generik (list guru, list siswa, sidebar, profil) ---- */
+.app-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #6366f1;
+  color: #ffffff;
+  font-weight: 700;
+  line-height: 1;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+}
+.app-avatar img { width: 100%; height: 100%; object-fit: cover; }

@@ -53,6 +53,7 @@ export { default as useUiState } from './hooks/useUiState';
 
 // ---- Komponen umum ----------------------------------------------------------
 export { default as ActionButton } from './components/common/ActionButton';
+export { default as Avatar } from './components/common/Avatar';
 export { default as Modal } from './components/common/Modal';
 export { default as Pagination } from './components/common/Pagination';
 

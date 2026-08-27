@@ -1,4 +1,5 @@
 import {
+  Avatar,
   Eye,
   PencilLine,
   Plus,
@@ -7,6 +8,7 @@ import {
   TrendingUp,
   ActionButton,
 } from '../../imports';
+import '../../styles/profileCard.css';
 
 export default function StudentsView({
   students,
@@ -96,7 +98,12 @@ export default function StudentsView({
                 return (
                   <tr key={student.id}>
                     <td style={{ color: '#64748b', fontWeight: 600 }}>{rowNumber}</td>
-                    <td className="table-student-name">{student.name}</td>
+                    <td className="table-student-name">
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+                        <Avatar name={student.name} photo={student.photo_filepath} size={34} />
+                        <span>{student.name}</span>
+                      </span>
+                    </td>
                     <td>{student.class}</td>
                     <td>
                       <div className="table-progress-bar">

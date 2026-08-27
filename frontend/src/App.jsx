@@ -225,6 +225,7 @@ export default function App() {
         onSelectTab={ui.setActiveTab}
         currentUser={auth.currentUser}
         avatarInitials={profile.profileData.avatarInitials}
+        photoFilepath={profile.profileData.photoFilepath}
       />
 
       <main className="main-content">

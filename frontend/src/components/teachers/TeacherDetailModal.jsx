@@ -1,4 +1,12 @@
-import { XCircle, API_BASE_URL } from '../../imports';
+import { useEffect, useState, XCircle, API_BASE_URL } from '../../imports';
+import '../../styles/profileCard.css';
+
+const initialsOf = (name = '') => name
+  .split(' ')
+  .filter(Boolean)
+  .slice(0, 2)
+  .map((word) => word[0].toUpperCase())
+  .join('') || '?';
 
 const formatDate = (timestamp) => {
   if (!timestamp) return '-';
@@ -36,7 +44,16 @@ export default function TeacherDetailModal({
   teacherSessionsError,
   onClose,
 }) {
+  const [photoFailed, setPhotoFailed] = useState(false);
+
+  // Reset status gambar setiap kali guru yang dibuka berganti.
+  useEffect(() => { setPhotoFailed(false); }, [teacherDetailData?.id]);
+
   if (!teacherDetailModal) return null;
+
+  const photoUrl = teacherDetailData?.photo_filepath
+    ? buildImageUrl(teacherDetailData.photo_filepath)
+    : null;
 
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
@@ -56,13 +73,31 @@ export default function TeacherDetailModal({
               <div style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>Memuat data guru...</div>
             ) : teacherDetailData ? (
               <>
+                <div className="profile-identity">
+                  <div className="profile-avatar">
+                    {photoUrl && !photoFailed ? (
+                      <img
+                        src={photoUrl}
+                        alt={teacherDetailData.name || 'Foto guru'}
+                        onError={() => setPhotoFailed(true)}
+                      />
+                    ) : (
+                      initialsOf(teacherDetailData.name)
+                    )}
+                  </div>
+                  <div className="profile-identity-info">
+                    <span className="profile-identity-name">{teacherDetailData.name || '-'}</span>
+                    <div className="profile-identity-tags">
+                      <span className="profile-tag">{teacherDetailData.role || 'teacher'}</span>
+                      <span className={`profile-tag ${teacherDetailData.is_active ? 'is-active' : 'is-inactive'}`}>
+                        {teacherDetailData.is_active ? 'Aktif' : 'Tidak Aktif'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
                 <div className="modal-detail-row"><span className="modal-detail-label">ID</span><span className="modal-detail-value">{teacherDetailData.id || '-'}</span></div>
-                <div className="modal-detail-row"><span className="modal-detail-label">Nama</span><span className="modal-detail-value">{teacherDetailData.name}</span></div>
                 <div className="modal-detail-row"><span className="modal-detail-label">Email</span><span className="modal-detail-value">{teacherDetailData.email || '-'}</span></div>
-                <div className="modal-detail-row"><span className="modal-detail-label">Foto</span><span className="modal-detail-value">{teacherDetailData.photo_filepath ? (() => { const src = buildImageUrl(teacherDetailData.photo_filepath); return <img src={src} alt={teacherDetailData.name || 'foto guru'} style={{ height: 80, borderRadius: 8 }} />; })() : '-'}</span></div>
                 <div className="modal-detail-row"><span className="modal-detail-label">NIP</span><span className="modal-detail-value">{teacherDetailData.nip || '-'}</span></div>
-                <div className="modal-detail-row"><span className="modal-detail-label">Role</span><span className="modal-detail-value">{teacherDetailData.role || '-'}</span></div>
-                <div className="modal-detail-row"><span className="modal-detail-label">Status</span><span className="modal-detail-value">{teacherDetailData.is_active ? 'Aktif' : 'Tidak Aktif'}</span></div>
               </>
             ) : (
               <div style={{ padding: '12px', color: '#64748b' }}>{teacherErrorMsg || 'Detail guru tidak tersedia.'}</div>

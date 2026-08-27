@@ -1,4 +1,12 @@
-import { useState, useEffect, AlertCircle, Loader, getStudentSessions } from '../../imports';
+import { useState, useEffect, AlertCircle, Clock, Loader, User, getStudentSessions } from '../../imports';
+
+/** focus_score & distracted_score berupa hitungan frame, bukan persen. */
+const focusPercentage = (metrics = {}) => {
+  const focus = Number(metrics.focus_score ?? 0);
+  const distracted = Number(metrics.distracted_score ?? 0);
+  const total = focus + distracted;
+  return total > 0 ? Math.round((focus / total) * 100) : 0;
+};
 
 const formatDate = (timestamp) => {
   if (!timestamp) return '-';
@@ -92,17 +100,23 @@ export default function StudentSessionsHistoryDisplay({
       {sessions.map((s) => (
         <div key={s.session_id} style={{ padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: '#f8fafc' }}>
           <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#1e293b', marginBottom: '4px' }}>{s.subject || 'Tanpa Judul'}</div>
-          <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '6px' }}>📚 {s.classroom_name || '-'}</div>
-          <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '4px' }}>⏰ {formatDate(s.start_time)} {formatTime(s.start_time)}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#64748b', marginBottom: '6px' }}>
+            <User size={14} />
+            <span>{s.teacher_name || 'Guru tidak diketahui'}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '4px' }}>
+            <Clock size={14} />
+            <span>{formatDate(s.start_time)} {formatTime(s.start_time)}</span>
+          </div>
           {s.metrics && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #e2e8f0' }}>
               <div style={{ textAlign: 'center', fontSize: '0.75rem' }}>
-                <div style={{ color: '#3b82f6', fontWeight: 600 }}>{s.metrics.focus_percentage || 0}%</div>
+                <div style={{ color: '#3b82f6', fontWeight: 600 }}>{focusPercentage(s.metrics)}%</div>
                 <div style={{ color: '#64748b' }}>Fokus</div>
               </div>
               <div style={{ textAlign: 'center', fontSize: '0.75rem' }}>
-                <div style={{ color: '#f59e0b', fontWeight: 600 }}>{s.metrics.using_phone_count || 0}</div>
-                <div style={{ color: '#64748b' }}>HP</div>
+                <div style={{ color: '#f59e0b', fontWeight: 600 }}>{s.metrics.distracted_score ?? 0}</div>
+                <div style={{ color: '#64748b' }}>Terdistraksi</div>
               </div>
               <div style={{ textAlign: 'center', fontSize: '0.75rem' }}>
                 <div style={{ color: '#10b981', fontWeight: 600 }}>{s.metrics.raised_hand_count || 0}</div>

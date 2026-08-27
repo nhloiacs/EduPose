@@ -1,4 +1,5 @@
-import { Cpu, LogOut, Settings, User } from '../../imports';
+import { Cpu, LogOut, Settings, User, Avatar } from '../../imports';
+import '../../styles/profileCard.css';
 
 const SYNC_STATUS = {
   connected: { label: 'Tersinkron dengan sistem', color: '#10b981' },
@@ -46,7 +47,15 @@ export default function ProfileView({
       <div className="profile-grid">
         <div className="profile-sidebar-card">
           <div className="profile-avatar-large">
-            <span>{profileData.avatarInitials}</span>
+            {profileData.photoFilepath ? (
+              <Avatar
+                name={profileData.name}
+                photo={profileData.photoFilepath}
+                size={96}
+              />
+            ) : (
+              <span>{profileData.avatarInitials}</span>
+            )}
           </div>
           <h3 className="profile-name">{profileData.name}</h3>
           <span className="profile-role">{roleLabel(currentUser, profileData)}</span>

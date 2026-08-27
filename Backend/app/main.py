@@ -1,5 +1,7 @@
+from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import JSONResponse        
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from app.core.exceptions import BaseAPIException  
 from app.modules.auth.api import router as auth_router
 from app.modules.teacher.api import router as teacher_router
@@ -11,6 +13,11 @@ from app.modules.camera.api import router as camera_router
 from app.modules.stream.api import router as stream_router
 
 app = FastAPI()
+
+# Foto guru/siswa disimpan di folder static dan diakses lewat /static/...
+STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+STATIC_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 @app.exception_handler(BaseAPIException)
 async def custom_exception_handler(request: Request, exc: BaseAPIException):

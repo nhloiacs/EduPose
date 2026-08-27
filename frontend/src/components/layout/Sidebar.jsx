@@ -8,7 +8,9 @@ import {
   Users,
   Video,
   logoEdupose,
+  Avatar,
 } from '../../imports';
+import '../../styles/profileCard.css';
 
 function MenuItem({ id, icon: Icon, label, activeTab, onSelect }) {
   return (
@@ -22,7 +24,7 @@ function MenuItem({ id, icon: Icon, label, activeTab, onSelect }) {
   );
 }
 
-export default function Sidebar({ activeTab, onSelectTab, currentUser, avatarInitials }) {
+export default function Sidebar({ activeTab, onSelectTab, currentUser, avatarInitials, photoFilepath }) {
   const isPrincipal = currentUser?.role === 'principal';
   const isTeacher = currentUser?.role === 'teacher';
 
@@ -59,7 +61,11 @@ export default function Sidebar({ activeTab, onSelectTab, currentUser, avatarIni
 
       <div className="sidebar-profile" onClick={() => onSelectTab('profile')}>
         <div className="avatar-wrapper">
-          <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>{avatarInitials}</span>
+          {photoFilepath ? (
+            <Avatar name={currentUser?.name} photo={photoFilepath} size={38} />
+          ) : (
+            <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>{avatarInitials}</span>
+          )}
         </div>
       </div>
     </aside>

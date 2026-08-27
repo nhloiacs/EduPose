@@ -1825,18 +1825,17 @@ body {
 }
 
 .list-number-badge {
-  min-width: 32px;
-  height: 32px;
-  padding: 0 10px;
+  /* Sengaja TIDAK bulat: avatar profil di sebelahnya sudah bulat, jadi nomor
+     urut dibuat polos dan rata kanan supaya tidak terbaca sebagai avatar. */
+  min-width: 24px;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: var(--primary-light);
-  color: var(--primary);
-  font-size: 0.82rem;
-  font-weight: 800;
-  letter-spacing: 0.02em;
+  justify-content: flex-end;
+  background: none;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 @keyframes modal-pop {

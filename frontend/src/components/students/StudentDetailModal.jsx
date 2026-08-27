@@ -1,4 +1,12 @@
-import { Modal, StudentSessionsHistoryDisplay, resolveAssetUrl } from '../../imports';
+import { useEffect, useState, Modal, StudentSessionsHistoryDisplay, resolveAssetUrl } from '../../imports';
+import '../../styles/profileCard.css';
+
+const initialsOf = (name = '') => name
+  .split(' ')
+  .filter(Boolean)
+  .slice(0, 2)
+  .map((word) => word[0].toUpperCase())
+  .join('') || '?';
 
 const DetailRow = ({ label, children }) => (
   <div className="modal-detail-row">
@@ -8,6 +16,11 @@ const DetailRow = ({ label, children }) => (
 );
 
 export default function StudentDetailModal({ studentDetail, authToken, onClose }) {
+  const [photoFailed, setPhotoFailed] = useState(false);
+
+  // Reset status gambar setiap kali siswa yang dibuka berganti.
+  useEffect(() => { setPhotoFailed(false); }, [studentDetail?.id]);
+
   if (!studentDetail) return null;
 
   const photoUrl = resolveAssetUrl(studentDetail.photo_filepath);
@@ -23,13 +36,29 @@ export default function StudentDetailModal({ studentDetail, authToken, onClose }
     >
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', padding: '20px', minHeight: '500px' }}>
         <div className="modal-detail-card">
+          <div className="profile-identity">
+            <div className="profile-avatar">
+              {photoUrl && !photoFailed ? (
+                <img
+                  src={photoUrl}
+                  alt={studentDetail.name || 'Foto siswa'}
+                  onError={() => setPhotoFailed(true)}
+                />
+              ) : (
+                initialsOf(studentDetail.name)
+              )}
+            </div>
+            <div className="profile-identity-info">
+              <span className="profile-identity-name">{studentDetail.name || '-'}</span>
+              <div className="profile-identity-tags">
+                {studentDetail.nis && <span className="profile-tag">{studentDetail.nis}</span>}
+                {studentDetail.classroom_name && (
+                  <span className="profile-tag is-active">{studentDetail.classroom_name}</span>
+                )}
+              </div>
+            </div>
+          </div>
           <DetailRow label="ID">{studentDetail.id || '-'}</DetailRow>
-          <DetailRow label="Nama">{studentDetail.name}</DetailRow>
-          <DetailRow label="Foto">
-            {photoUrl
-              ? <img src={photoUrl} alt={studentDetail.name || 'foto siswa'} style={{ height: 80, borderRadius: 8 }} />
-              : '-'}
-          </DetailRow>
           <DetailRow label="NIS">{studentDetail.nis || '-'}</DetailRow>
           <DetailRow label="Kelas">{studentDetail.classroom_name || '-'}</DetailRow>
           <DetailRow label="Rata-rata Fokus">{((metrics.avg_focus_score ?? 0) * 100).toFixed(1)}%</DetailRow>

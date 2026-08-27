@@ -1,4 +1,5 @@
-import { Eye, PencilLine, Plus, Trash2, ActionButton } from '../../imports';
+import { Eye, PencilLine, Plus, Trash2, ActionButton, Avatar } from '../../imports';
+import '../../styles/profileCard.css';
 
 export default function TeachersView({
   teachers,
@@ -29,6 +30,7 @@ export default function TeachersView({
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <span className="list-number-badge">{index + 1}</span>
+              <Avatar name={teacher.name} photo={teacher.photo_filepath} size={38} />
               <span>{teacher.name} — {teacher.nip}</span>
             </div>
             <div style={{ display: 'flex', gap: '6px' }}>
