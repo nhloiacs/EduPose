@@ -1,4 +1,5 @@
-import { detectionLabel } from '../../imports';
+import { detectionLabel, Video } from '../../imports';
+import '../../styles/streamControl.css';
 
 export default function LiveView({
   imgRef,
@@ -22,6 +23,9 @@ export default function LiveView({
   onStartDemoWebcam,   // <--- Props baru
   onStopStream,
 }) {
+  const ongoingSessions = (sessions || []).filter((session) => session.status === 'ONGOING');
+  const isStreaming = Boolean(streamUrl) || isDemoActive;
+
   return (
     <div className="view-panel">
       {/* Video tersembunyi untuk nyedot webcam laptop */}
@@ -78,11 +82,7 @@ export default function LiveView({
           )}
 
           {streamError && <p role="alert" style={{ color: '#b91c1c', marginTop: '12px' }}>{streamError}</p>}
-          {!streamUrl && !streamError && (
-            <p style={{ marginTop: '12px', color: '#475569' }}>
-              Tekan tombol <strong>Mulai Stream</strong> untuk memulai aliran video.
-            </p>
-          )}
+          
         </div>
 
         <div className="camera-result-card">
@@ -151,61 +151,74 @@ export default function LiveView({
       <div className="stream-control-card">
         <div style={{ display: 'grid', gap: '18px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <label style={{ fontWeight: 600, color: '#cbd5e1' }}>Pilih Sesi untuk Stream:</label>
-            <select
-              value={selectedStreamSessionId}
-              onChange={(event) => onSelectStreamSession(event.target.value)}
-              style={{ width: '100%', maxWidth: '480px', padding: '12px 14px', borderRadius: '14px', border: '1px solid #334155', background: '#0b1220', color: '#f8fafc' }}
-            >
-              <option value="">Pilih sesi</option>
-                {sessions
-                  .filter((session) => session.status === "ONGOING")
-                  .map((session) => (
-                      <option key={session.id} value={session.id}>
-                        {session.subject
-                          ? `${session.subject} — ${session.classroom_name || session.camera_name || session.id} - ${session.status}`
-                          : session.id}
-                      </option>
-                    )
-                  )
-                }
-            </select>
+            <span className="stream-control-label">Pilih sesi untuk stream</span>
+            <div className="session-picker">
+              {ongoingSessions.length === 0 ? (
+                <div className="session-picker-empty">
+                  Tidak ada sesi yang sedang berlangsung.
+                </div>
+              ) : (
+                ongoingSessions.map((session) => (
+                  <button
+                    type="button"
+                    key={session.id}
+                    className={`session-option${selectedStreamSessionId === session.id ? ' is-selected' : ''}`}
+                    onClick={() => onSelectStreamSession(session.id)}
+                    disabled={isStreaming || streamLoading}
+                  >
+                    <span className="session-option-icon">
+                      <Video size={18} />
+                    </span>
+                    <span className="session-option-info">
+                      <span className="session-option-title">
+                        {session.subject || 'Tanpa mata pelajaran'}
+                      </span>
+                      <span className="session-option-meta">
+                        {session.classroom_name || session.camera_name || session.id}
+                      </span>
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-            {/* TOMBOL PINTAR (SMART BUTTON) */}
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={() => {
-                if (selectedStreamSessionId && selectedStreamSession) {
-                  onStartStream(selectedStreamSessionId, selectedStreamSession);
-                }
-              }}
-              disabled={!selectedStreamSessionId || streamLoading}
-            >
-              {streamLoading ? 'Memulai...' : 'Mulai Stream'}
-            </button>
+            {isStreaming ? (
+              <button type="button" className="btn-secondary" onClick={onStopStream}>
+                Hentikan Stream
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => {
+                  if (selectedStreamSessionId && selectedStreamSession) {
+                    onStartStream(selectedStreamSessionId, selectedStreamSession);
+                  }
+                }}
+                disabled={!selectedStreamSessionId || streamLoading}
+              >
+                {streamLoading ? 'Memulai...' : 'Mulai Stream'}
+              </button>
+            )}
 
-            {/* TOMBOL STOP */}
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={onStopStream}
-              disabled={!streamUrl && !streamError && !isDemoActive}
-            >
-              Hentikan
-            </button>
+            {isStreaming && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: '#b91c1c', fontWeight: 600, fontSize: '0.85rem' }}>
+                <span className="stream-live-dot" />
+                Stream sedang berjalan
+              </span>
+            )}
           </div>
 
-          {streamError && <p role="alert" style={{ color: '#f8d7da', margin: 0 }}>{streamError}</p>}
-          {!streamUrl && !streamError && (
-            <p style={{ margin: 0, color: '#94a3b8' }}>
-                Tekan <strong>Mulai Stream</strong> untuk RTSP, atau <strong>Gunakan Webcam</strong> untuk demo menggunakan laptop ini.
+          {streamError && <p role="alert" style={{ color: '#b91c1c', margin: 0 }}>{streamError}</p>}
+          {!isStreaming && !streamError && (
+            <p className="stream-control-hint">
+              Pilih salah satu sesi di atas, lalu tekan <strong>Mulai Stream</strong>.
             </p>
           )}
-          </div>
         </div>
       </div>
+    </div>
   );
 }

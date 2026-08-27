@@ -1,4 +1,5 @@
 import {
+  useState,
   Play,
   Square,
   Trash2,
@@ -6,9 +7,18 @@ import {
   ActionButton,
   Modal,
   attendanceLabel,
+  getMonitorStreamUrl,
   formatDateTimeLabel,
   formatMetricValue,
 } from '../../imports';
+import '../../styles/attendance.css';
+
+const initialsOf = (name = '') => name
+  .split(' ')
+  .filter(Boolean)
+  .slice(0, 2)
+  .map((word) => word[0].toUpperCase())
+  .join('') || '?';
 
 const DetailRow = ({ label, children }) => (
   <div className="modal-detail-row">
@@ -48,6 +58,9 @@ export default function SessionDetailModal({
   onEndSession,
   onClose,
 }) {
+  const [isAttendanceOpen, setAttendanceOpen] = useState(false);
+  const [previewError, setPreviewError] = useState(false);
+
   if (!isOpen) return null;
 
   const metrics = sessionDetail?.metrics_summary ?? {};
@@ -116,60 +129,42 @@ export default function SessionDetailModal({
               )}
 
               <div style={{ display: 'grid', gap: '8px' }}>
-                <label htmlFor="register-student-select" style={{ fontWeight: 600, color: '#1e1b4b' }}>
-                  Absensi siswa
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <select
-                    id="register-student-select"
-                    value={registerStudentId}
-                    onChange={(event) => setRegisterStudentId(event.target.value)}
-                    disabled={isBusy || !isSessionActive || registerStudentOptions.length === 0}
-                    style={{ minWidth: '240px', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff' }}
-                  >
-                    <option value="">
-                      {registerStudentOptions.length === 0 ? 'Belum ada siswa di kelas ini' : 'Pilih siswa...'}
-                    </option>
-                    {registerStudentOptions.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.name}
-                        {option.nis ? ` (${option.nis})` : ''}
-                        {` — ${attendanceLabel(option.status)}`}
-                      </option>
-                    ))}
-                  </select>
+                <span style={{ fontWeight: 600, color: '#1e1b4b' }}>Absensi siswa</span>
+                <div>
                   <ActionButton
                     variant="primary"
                     icon={UserCheck}
-                    onClick={() => onRegisterStudentPose(sessionDetail.id)}
-                    disabled={isBusy || !isSessionActive || !registerStudentId}
+                    onClick={() => { setPreviewError(false); setAttendanceOpen(true); }}
+                    disabled={isBusy || !isSessionActive}
                   >
-                    {actionLabel('register', 'Absen Siswa', 'Mengabsen...')}
+                    Absensi Siswa
                   </ActionButton>
                 </div>
                 <p style={{ margin: 0, fontSize: '0.82rem', color: '#64748b' }}>
-                  Pilih siswa, lalu minta siswa tersebut mengangkat tangan di depan kamera sebelum menekan tombol.
-                  Pastikan hanya satu siswa yang mengangkat tangan.
+                  Buka halaman absensi untuk memilih siswa dan mencatat kehadiran lewat kamera.
                 </p>
               </div>
 
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
-                <ActionButton
-                  variant="primary"
-                  icon={Play}
-                  onClick={() => onStartEvaluation(sessionDetail.id)}
-                  disabled={isBusy || !isSessionActive || isEvaluating}
-                >
-                  {actionLabel('start-eval', 'Mulai Evaluasi', 'Memulai...')}
-                </ActionButton>
-                <ActionButton
-                  variant="secondary"
-                  icon={Square}
-                  onClick={() => onEndEvaluation(sessionDetail.id)}
-                  disabled={isBusy || !isSessionActive || !isEvaluating}
-                >
-                  {actionLabel('end-eval', 'Hentikan Evaluasi', 'Menghentikan...')}
-                </ActionButton>
+                {isEvaluating ? (
+                  <ActionButton
+                    variant="secondary"
+                    icon={Square}
+                    onClick={() => onEndEvaluation(sessionDetail.id)}
+                    disabled={isBusy || !isSessionActive}
+                  >
+                    {actionLabel('end-eval', 'Hentikan Evaluasi', 'Menghentikan...')}
+                  </ActionButton>
+                ) : (
+                  <ActionButton
+                    variant="primary"
+                    icon={Play}
+                    onClick={() => onStartEvaluation(sessionDetail.id)}
+                    disabled={isBusy || !isSessionActive}
+                  >
+                    {actionLabel('start-eval', 'Mulai Evaluasi', 'Memulai...')}
+                  </ActionButton>
+                )}
                 <ActionButton
                   variant="danger"
                   icon={Trash2}
@@ -216,6 +211,115 @@ export default function SessionDetailModal({
             <DetailRow label="Absen">{sessionDetail.absent_count ?? '-'}</DetailRow>
           </div>
         </div>
+      )}
+
+      {isAttendanceOpen && sessionDetail && (
+        <Modal
+          id="session-attendance-modal-title"
+          title="Absensi Siswa"
+          subtitle="Catat kehadiran siswa melalui deteksi kamera."
+          closeLabel="Tutup halaman absensi"
+          wide={false}
+          onClose={() => setAttendanceOpen(false)}
+        >
+          <div style={{ display: 'grid', gap: '16px' }}>
+            {sessionActionMessage && (
+              <div
+                role={sessionActionMessage.type === 'error' ? 'alert' : 'status'}
+                style={{
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  fontSize: '0.9rem',
+                  background: messageStyle.background,
+                  border: `1px solid ${messageStyle.border}`,
+                  color: messageStyle.color,
+                }}
+              >
+                {sessionActionMessage.text}
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gap: '8px' }}>
+              <span style={{ fontWeight: 600, color: '#1e1b4b' }}>Kamera kelas</span>
+              <div
+                style={{
+                  position: 'relative',
+                  width: '100%',
+                  aspectRatio: '4 / 3',
+                  borderRadius: '12px',
+                  overflow: 'hidden',
+                  background: '#0f172a',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {previewError ? (
+                  <p style={{ color: '#e2e8f0', fontSize: '0.85rem', textAlign: 'center', padding: '0 18px' }}>
+                    Kamera belum aktif. Buka menu <strong>Live Camera Feed</strong> dan tekan
+                    {' '}<strong>Mulai Stream</strong> untuk sesi ini terlebih dahulu.
+                  </p>
+                ) : (
+                  <img
+                    src={getMonitorStreamUrl(sessionDetail.id)}
+                    alt="Pratinjau kamera kelas"
+                    onError={() => setPreviewError(true)}
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  />
+                )}
+              </div>
+
+              <span style={{ fontWeight: 600, color: '#1e1b4b' }}>Pilih siswa</span>
+              <div className="attendance-picker">
+                {registerStudentOptions.length === 0 ? (
+                  <div className="attendance-empty">Belum ada siswa di kelas ini.</div>
+                ) : (
+                  registerStudentOptions.map((option) => {
+                    const isPresent = String(option.status || '').toUpperCase() === 'PRESENT';
+                    return (
+                      <button
+                        type="button"
+                        key={option.id}
+                        className={`attendance-option${registerStudentId === option.id ? ' is-selected' : ''}`}
+                        onClick={() => setRegisterStudentId(
+                          registerStudentId === option.id ? '' : option.id,
+                        )}
+                        disabled={isBusy || !isSessionActive}
+                      >
+                        <span className="attendance-avatar">{initialsOf(option.name)}</span>
+                        <span className="attendance-info">
+                          <span className="attendance-name">{option.name}</span>
+                          {option.nis && <span className="attendance-nis">{option.nis}</span>}
+                        </span>
+                        <span className={`attendance-status${isPresent ? ' is-present' : ''}`}>
+                          {attendanceLabel(option.status)}
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+              <p style={{ margin: 0, fontSize: '0.82rem', color: '#64748b' }}>
+                Pilih siswa, lalu minta siswa tersebut mengangkat tangan di depan kamera sebelum menekan tombol.
+                Pastikan hanya satu siswa yang mengangkat tangan.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+              <ActionButton variant="secondary" onClick={() => setAttendanceOpen(false)}>
+                Tutup
+              </ActionButton>
+              <ActionButton
+                variant="primary"
+                icon={UserCheck}
+                onClick={() => onRegisterStudentPose(sessionDetail.id)}
+                disabled={isBusy || !isSessionActive || !registerStudentId}
+              >
+                {actionLabel('register', 'Absen Siswa', 'Mengabsen...')}
+              </ActionButton>
+            </div>
+          </div>
+        </Modal>
       )}
     </Modal>
   );

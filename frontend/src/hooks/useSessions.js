@@ -35,6 +35,7 @@ export function useSessions({
   setBackendMessage,
   reloadCameraOptions,
   onMonitorStream,
+  onEvaluationStarted,
   classroomDetail,
   setClassroomDetail,
 }) {
@@ -294,6 +295,10 @@ export function useSessions({
       const response = await startEvaluation(sessionId, authToken);
       setIsEvaluating(true);
       notify('success', response.message || 'Evaluasi AI dimulai. Metrik sedang dicatat.');
+      // Langsung arahkan guru ke halaman Live Camera Feed yang sudah
+      // menampilkan sesi yang barusan dievaluasi.
+      onEvaluationStarted?.(sessionId);
+      setIsSessionDetailOpen(false);
     } catch (error) {
       console.error(error);
       setIsEvaluating(false);

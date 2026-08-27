@@ -122,6 +122,10 @@ export default function App() {
     setBackendMessage: auth.setBackendMessage,
     reloadCameraOptions: cameras.reloadCameraOptions,
     onMonitorStream: live.handleMonitorStream,
+    onEvaluationStarted: (sessionId) => {
+      live.setSelectedStreamSessionId(sessionId);
+      ui.setActiveTab('live');
+    },
     classroomDetail: classrooms.classroomDetail,
     setClassroomDetail: classrooms.setClassroomDetail,
   });
@@ -244,7 +248,7 @@ export default function App() {
           lastSyncedAt={auth.lastSyncedAt}
         />
 
-        {ui.activeTab !== 'reports' && ui.activeTab !== 'profile' && (
+        {ui.activeTab !== 'reports' && ui.activeTab !== 'profile' && ui.activeTab !== 'live' && (
           <SummaryMetrics
             isPrincipalUser={auth.isPrincipalUser}
             dashboardSummary={dashboard.dashboardSummary}
@@ -274,7 +278,10 @@ export default function App() {
           />
         )}
 
-        {ui.activeTab === 'live' && (
+        {/* LiveView sengaja tetap ter-mount selama stream menyala. Kalau di-unmount
+            saat pindah tab, koneksi MJPEG terputus dan gambarnya membeku. */}
+        {(ui.activeTab === 'live' || live.streamUrl) && (
+          <div style={{ display: ui.activeTab === 'live' ? 'block' : 'none' }}>
           <LiveView
             imgRef={live.imgRef}
             canvasRef={live.canvasRef}
@@ -299,6 +306,7 @@ export default function App() {
             onStartStream={live.handleMonitorStream}
             onStopStream={live.handleStopStream}
           />
+          </div>
         )}
 
         {ui.activeTab === 'students' && (
