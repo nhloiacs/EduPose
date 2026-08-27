@@ -94,7 +94,7 @@ export function useDashboardData({
       if (!authToken) {
         if (!isActive) return;
         setSyncState('idle');
-        setBackendMessage('Belum login ke backend');
+        setBackendMessage('Belum login ke sistem');
         return;
       }
 

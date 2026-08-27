@@ -1,4 +1,4 @@
-import { LogIn, ShieldCheck, UserRound, logoEdupose } from '../../imports';
+import { logoEdupose } from '../../imports';
 
 export default function LoginPage({
   loginForm,
@@ -13,49 +13,21 @@ export default function LoginPage({
       <div className="auth-shell">
         <section className="auth-visual">
           <div className="auth-badge">
-            <img className="auth-logo-image" src={logoEdupose} alt="EduPose logo" />
             <span>EduPose</span>
           </div>
 
           <h1>Masuk ke dashboard pemantauan kelas</h1>
-          <p>
-            Pisahkan akses login dari dashboard agar alur masuk lebih jelas, rapi, dan mudah dipahami.
-          </p>
+          <h4>
+            Login untuk mengakses dashboard EduPose!
+          </h4>
 
-          <div className="auth-stats">
-            <div className="auth-stat-card">
-              <ShieldCheck size={18} />
-              <div>
-                <strong>Login aman</strong>
-                <span>Token disimpan di browser</span>
-              </div>
-            </div>
-            <div className="auth-stat-card">
-              <UserRound size={18} />
-              <div>
-                <strong>Principal</strong>
-                <span>bambang@school.com</span>
-              </div>
-            </div>
-            <div className="auth-stat-card">
-              <UserRound size={18} />
-              <div>
-                <strong>Teacher</strong>
-                <span>henra@school.com</span>
-              </div>
-            </div>
-          </div>
         </section>
 
         <section className="auth-card">
-          <div className="auth-card-header">
-            <div className="auth-card-icon">
-              <LogIn size={20} />
-            </div>
-            <div>
-              <h2>Login</h2>
-              <p>{statusMessage || 'Masukkan akun Anda untuk melanjutkan.'}</p>
-            </div>
+          <div className="auth-card-header auth-card-header--stacked">
+            <img className="auth-card-logo" src={logoEdupose} alt="EduPose" />
+            <h2>Login</h2>
+            <p>{statusMessage || 'Masukkan akun Anda untuk melanjutkan.'}</p>
           </div>
 
           <form className="auth-form" onSubmit={onSubmit}>
