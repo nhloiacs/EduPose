@@ -22,7 +22,7 @@ export function useAuthSession() {
   );
   const [lastSyncedAt, setLastSyncedAt] = useState(null);
   const [loginError, setLoginError] = useState('');
-  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [loginForm, setLoginForm] = useState({ email: 'bambang@school.com', password: 'password123' });
 
   useEffect(() => {
     setApiAuthToken(authToken);

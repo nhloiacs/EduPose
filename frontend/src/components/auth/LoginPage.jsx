@@ -35,7 +35,7 @@ export default function LoginPage({
               <span>Email Login</span>
               <input
                 type="email"
-                placeholder="guru@school.com"
+                placeholder="bambang@school.com"
                 value={loginForm.email}
                 onChange={(event) => setLoginForm((previousForm) => ({ ...previousForm, email: event.target.value }))}
               />

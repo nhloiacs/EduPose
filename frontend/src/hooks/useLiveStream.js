@@ -6,6 +6,7 @@ import {
   getSessionLiveDetections,
   getUploadFrameWsUrl,
   getNotificationWsUrl,
+  getCameraDetail,
 } from '../imports';
 
 const DETECTION_POLL_INTERVAL_MS = 3000;
@@ -138,7 +139,7 @@ export function useLiveStream({ authToken, setBackendMessage, onNotification }) 
   // ==========================================
   // FUNGSI UTAMA: MEMULAI STREAM & WEBCAM
   // ==========================================
-  const handleMonitorStream = async (sessionId) => {
+  const handleMonitorStream = async (sessionId, session) => {
     if (!authToken) {
       setBackendMessage('Silakan login untuk melakukan aksi sesi');
       return;
@@ -151,63 +152,141 @@ export function useLiveStream({ authToken, setBackendMessage, onNotification }) 
     try {
       setSelectedStreamSessionId(sessionId);
 
-      // Hubungkan WebSocket notifikasi lebih dulu, terlepas dari sumber kamera
-      // (RTSP maupun webcam demo), supaya alert selalu diterima.
+      // Notifikasi tetap aktif untuk semua jenis kamera
       connectToNotifications(sessionId);
 
-      // 1. Minta izin & nyalakan webcam laptop
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { width: 640, height: 480 } 
-      });
-      
-      localStreamRef.current = stream;
-      if (hiddenVideoRef.current) {
-        hiddenVideoRef.current.srcObject = stream;
-        hiddenVideoRef.current.play();
+      // ==========================================
+      // 1. Ambil informasi kamera dari session
+      // ==========================================
+      const cameraId = session?.camera_id;
+
+      if (!cameraId) {
+        throw new Error('Session tidak memiliki camera_id.');
       }
 
-      // 2. Buka WebSocket untuk upload frame ke backend
-      const wsUrl = getUploadFrameWsUrl(sessionId);
-      const ws = new WebSocket(wsUrl);
-      uploadWsRef.current = ws;
+      const cameraResponse = await getCameraDetail(cameraId, authToken);
+      const camera = cameraResponse?.data;
 
-      ws.onopen = () => {
-        setBackendMessage('Webcam terhubung, mengirim frame ke AI...');
-        
-        const offscreenCanvas = document.createElement('canvas');
-        offscreenCanvas.width = 640;
-        offscreenCanvas.height = 480;
-        const ctx = offscreenCanvas.getContext('2d');
+      if (!camera) {
+        throw new Error('Data kamera tidak ditemukan.');
+      }
 
-        // Kirim frame tiap 100ms (10 FPS) dengan console.log buat debug
-        uploadIntervalRef.current = setInterval(() => {
-          if (ws.readyState === WebSocket.OPEN && hiddenVideoRef.current) {
-            ctx.drawImage(hiddenVideoRef.current, 0, 0, 640, 480);
-            offscreenCanvas.toBlob(
-              (blob) => { 
-                if (blob) {
-                  ws.send(blob); 
-                }
-              },
-              'image/jpeg',
-              0.6
-            );
-          }
-        }, 100);
+      const endpoint = String(camera.endpoint || '').trim();
 
-        // 4. Set URL stream gambar dari backend agar tag <img> nmapilin hasil anotasi
+      console.log('[LIVE STREAM] Camera:', camera);
+      console.log('[LIVE STREAM] Endpoint:', endpoint);
+
+      // ==========================================
+      // 2. Tentukan jenis kamera
+      // ==========================================
+      const isWebcam = endpoint.toLowerCase() === 'webcam';
+
+      // ==========================================
+      // 3A. WEBCAM
+      // ==========================================
+      if (isWebcam) {
+        setBackendMessage('Meminta akses webcam...');
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: 640,
+            height: 480,
+          },
+        });
+
+        localStreamRef.current = stream;
+
+        if (hiddenVideoRef.current) {
+          hiddenVideoRef.current.srcObject = stream;
+          await hiddenVideoRef.current.play();
+        }
+
+        // ==========================================
+        // Upload frame webcam → backend
+        // ==========================================
+        const wsUrl = getUploadFrameWsUrl(sessionId);
+        const ws = new WebSocket(wsUrl);
+
+        uploadWsRef.current = ws;
+
+        ws.onopen = () => {
+          setBackendMessage('Webcam terhubung, mengirim frame ke AI...');
+
+          const offscreenCanvas = document.createElement('canvas');
+          offscreenCanvas.width = 640;
+          offscreenCanvas.height = 480;
+
+          const ctx = offscreenCanvas.getContext('2d');
+
+          uploadIntervalRef.current = setInterval(() => {
+            if (
+              ws.readyState === WebSocket.OPEN &&
+              hiddenVideoRef.current
+            ) {
+              ctx.drawImage(
+                hiddenVideoRef.current,
+                0,
+                0,
+                640,
+                480
+              );
+
+              offscreenCanvas.toBlob(
+                (blob) => {
+                  if (
+                    blob &&
+                    ws.readyState === WebSocket.OPEN
+                  ) {
+                    ws.send(blob);
+                  }
+                },
+                'image/jpeg',
+                0.6
+              );
+            }
+          }, 100);
+
+          // Backend menampilkan hasil anotasi
+          setStreamUrl(getMonitorStreamUrl(sessionId));
+          setIsDemoActive(true);
+        };
+
+        ws.onerror = (err) => {
+          console.error('[WEBCAM WS] Error:', err);
+          setStreamError(
+            'Gagal menyambungkan WebSocket frame ke backend.'
+          );
+        };
+      }
+
+      // ==========================================
+      // 3B. RTSP / CAMERA LAIN
+      // ==========================================
+      else {
+        console.log(
+          '[LIVE STREAM] Non-webcam camera detected:',
+          endpoint
+        );
+
+        setBackendMessage('Menghubungkan stream kamera...');
+
+        // PENTING:
+        // Tidak ada getUserMedia()
+        // Tidak ada upload-frame WebSocket
+        // Tidak ada akses kamera laptop
+
         setStreamUrl(getMonitorStreamUrl(sessionId));
-        setIsDemoActive(true);
-      };
-
-      ws.onerror = (err) => {
-        console.error('WebSocket Error:', err);
-        setStreamError('Gagal menyambungkan WebSocket frame ke backend.');
-      };
+        setIsDemoActive(false);
+      }
 
     } catch (error) {
-      console.error(error);
-      const message = error instanceof Error ? error.message : 'Gagal mengakses webcam atau memulai stream';
+      console.error('[LIVE STREAM] Error:', error);
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Gagal memulai stream kamera.';
+
       setStreamError(message);
       setBackendMessage(message);
       setStreamUrl('');
@@ -218,12 +297,30 @@ export function useLiveStream({ authToken, setBackendMessage, onNotification }) 
 
   // --- FUNGSI STOP STREAM ---
   const handleStopStream = () => {
-    if (uploadIntervalRef.current) clearInterval(uploadIntervalRef.current);
-    if (uploadWsRef.current) uploadWsRef.current.close();
-    if (notificationWsRef.current) notificationWsRef.current.close();
-    
+    if (uploadIntervalRef.current) {
+      clearInterval(uploadIntervalRef.current);
+      uploadIntervalRef.current = null;
+    }
+
+    if (uploadWsRef.current) {
+      uploadWsRef.current.close();
+      uploadWsRef.current = null;
+    }
+
+    if (notificationWsRef.current) {
+      notificationWsRef.current.close();
+      notificationWsRef.current = null;
+    }
+
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => track.stop());
+      localStreamRef.current.getTracks().forEach((track) => {
+        track.stop();
+      });
+      localStreamRef.current = null;
+    }
+
+    if (hiddenVideoRef.current) {
+      hiddenVideoRef.current.srcObject = null;
     }
 
     setStreamUrl('');
